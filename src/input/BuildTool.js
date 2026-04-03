@@ -91,7 +91,8 @@ export class BuildTool {
     if (maxY - minY < 1) return; // need at least 2 floors
     if (!this.canPlaceElevator(gridX, minY, maxY)) return;
 
-    const cost = ROOM_TYPES.elevator.cost;
+    const floors = maxY - minY + 1;
+    const cost = ROOM_TYPES.elevator.costPerFloor * floors;
     if (!this.gameState.spendMoney(cost)) return;
 
     const elevator = new Elevator(gridX, minY, maxY);
@@ -164,7 +165,8 @@ export class BuildTool {
   canPlaceElevator(gridX, minY, maxY) {
     if (gridX < 0 || gridX >= 40) return false;
     if (minY < 0 || maxY >= 30) return false;
-    if (this.gameState.money < ROOM_TYPES.elevator.cost) return false;
+    const floors = maxY - minY + 1;
+    if (this.gameState.money < ROOM_TYPES.elevator.costPerFloor * floors) return false;
 
     // Check all cells are free
     for (let y = minY; y <= maxY; y++) {
@@ -190,7 +192,8 @@ export class BuildTool {
     const cellId = this.tower.grid[grid.gridY]?.[grid.gridX];
     if (cellId && this.tower.elevators.has(cellId)) {
       const elevator = this.tower.elevators.get(cellId);
-      const refund = Math.floor(ROOM_TYPES.elevator.cost * 0.5);
+      const floors = elevator.maxFloor - elevator.minFloor + 1;
+      const refund = Math.floor(ROOM_TYPES.elevator.costPerFloor * floors * 0.5);
       this.gameState.earnMoney(refund);
 
       // Clear grid cells

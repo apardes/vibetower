@@ -80,7 +80,8 @@ export const ROOM_TYPES = {
     name: 'Elevator',
     width: 1,
     height: 1, // per-floor cost; actual height is variable
-    cost: 50000,
+    costPerFloor: 10000,
+    cost: 10000, // display cost per floor
     income: -200, // maintenance cost per day
     capacity: 8,
     color: '#888888',

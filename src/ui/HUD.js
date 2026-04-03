@@ -45,8 +45,18 @@ export class HUD {
     this.popEl.style.cssText = 'color: #aaa;';
     this.popEl.textContent = 'Pop: 0';
 
+    // Satisfaction indicator (clickable)
+    this.satEl = document.createElement('span');
+    this.satEl.style.cssText = 'color: #aaa; cursor: pointer; user-select: none;';
+    this.satEl.title = 'Click for population details';
+    this.satEl.addEventListener('click', () => this.togglePopPanel());
+    this.updateSatisfactionIndicator();
+
     left.appendChild(this.moneyEl);
     left.appendChild(this.popEl);
+    left.appendChild(this.satEl);
+
+    this.leftSection = left;
 
     // Center: star rating
     this.starsEl = document.createElement('div');
@@ -209,6 +219,160 @@ export class HUD {
   updateStats() {
     this.popEl.textContent = `Pop: ${this.gameState.stats.totalPopulation}`;
     this.updateStars();
+    this.updateSatisfactionIndicator();
+    if (this.popPanel && this.popPanel.style.display !== 'none') {
+      this.updatePopPanel();
+    }
+  }
+
+  updateSatisfactionIndicator() {
+    const sat = Math.round(this.gameState.stats.averageSatisfaction);
+    let emoji;
+    if (sat >= 80) emoji = '\u{1F601}';      // grinning
+    else if (sat >= 60) emoji = '\u{1F642}';  // slightly smiling
+    else if (sat >= 40) emoji = '\u{1F610}';  // neutral
+    else if (sat >= 20) emoji = '\u{1F61F}';  // worried
+    else emoji = '\u{1F621}';                  // angry
+    this.satEl.textContent = `${emoji} ${sat}%`;
+  }
+
+  togglePopPanel() {
+    if (!this.popPanel) {
+      this.popPanel = document.createElement('div');
+      this.popPanel.style.cssText = `
+        position: fixed;
+        top: 50px;
+        left: 20px;
+        width: 380px;
+        max-height: calc(100vh - 120px);
+        background: rgba(15, 15, 25, 0.95);
+        border: 2px solid #444;
+        border-radius: 10px;
+        z-index: 300;
+        display: none;
+        font-family: 'Segoe UI', sans-serif;
+        color: #ddd;
+        font-size: 13px;
+        overflow: hidden;
+        flex-direction: column;
+      `;
+
+      const header = document.createElement('div');
+      header.style.cssText = `
+        padding: 12px 16px;
+        border-bottom: 1px solid #333;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+      `;
+      header.innerHTML = '<strong>Population Breakdown</strong>';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '\u2715';
+      closeBtn.style.cssText = `
+        background: none; border: none; color: #888;
+        cursor: pointer; font-size: 16px; padding: 0 4px;
+      `;
+      closeBtn.addEventListener('click', () => this.togglePopPanel());
+      header.appendChild(closeBtn);
+
+      this.popPanelBody = document.createElement('div');
+      this.popPanelBody.style.cssText = `
+        overflow-y: auto;
+        padding: 8px 0;
+        flex: 1;
+      `;
+
+      this.popPanel.appendChild(header);
+      this.popPanel.appendChild(this.popPanelBody);
+      document.body.appendChild(this.popPanel);
+    }
+
+    const showing = this.popPanel.style.display !== 'none';
+    if (showing) {
+      this.popPanel.style.display = 'none';
+    } else {
+      this.popPanel.style.display = 'flex';
+      this.updatePopPanel();
+    }
+  }
+
+  updatePopPanel() {
+    const { people, tower } = this.gameState;
+    const body = this.popPanelBody;
+
+    if (people.size === 0) {
+      body.innerHTML = '<div style="padding: 16px; color: #666; text-align: center;">No tenants yet</div>';
+      return;
+    }
+
+    // Group people by room
+    const roomGroups = new Map();
+    for (const [, person] of people) {
+      const roomId = person.homeRoom;
+      if (!roomGroups.has(roomId)) roomGroups.set(roomId, []);
+      roomGroups.get(roomId).push(person);
+    }
+
+    let html = '';
+
+    // Summary bar
+    const sat = Math.round(this.gameState.stats.averageSatisfaction);
+    html += `<div style="padding: 8px 16px; color: #aaa; border-bottom: 1px solid #2a2a3a;">
+      ${people.size} residents \u2022 Avg satisfaction: ${sat}%
+    </div>`;
+
+    // Sort rooms by floor (highest first), then by x
+    const sortedRooms = [...roomGroups.entries()]
+      .map(([roomId, persons]) => ({ room: tower.rooms.get(roomId), persons }))
+      .filter(entry => entry.room)
+      .sort((a, b) => b.room.gridY - a.room.gridY || a.room.gridX - b.room.gridX);
+
+    for (const { room, persons } of sortedRooms) {
+      const typeColors = {
+        apartment: '#7eb5e0',
+        office: '#b8d4a3',
+        retail: '#f0c674',
+        restaurant: '#e88a6a',
+      };
+      const color = typeColors[room.type] || '#aaa';
+
+      html += `<div style="padding: 6px 16px; border-bottom: 1px solid #1a1a2a;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span style="display:inline-block;width:10px;height:10px;background:${color};border-radius:2px;"></span>
+          <span style="color: #ccc; font-weight: 600;">${room.name}</span>
+          <span style="color: #666; font-size: 11px;">Floor ${room.gridY}</span>
+          <span style="color: #555; font-size: 11px; margin-left: auto;">${persons.length}/${room.capacity}</span>
+        </div>`;
+
+      for (const person of persons) {
+        const psat = Math.round(person.satisfaction);
+        let satColor, satEmoji;
+        if (psat >= 80) { satColor = '#4ae04a'; satEmoji = '\u{1F601}'; }
+        else if (psat >= 60) { satColor = '#8ec44a'; satEmoji = '\u{1F642}'; }
+        else if (psat >= 40) { satColor = '#c4a44a'; satEmoji = '\u{1F610}'; }
+        else if (psat >= 20) { satColor = '#c4744a'; satEmoji = '\u{1F61F}'; }
+        else { satColor = '#c44a4a'; satEmoji = '\u{1F621}'; }
+
+        const stateLabel = person.hidden ? 'Away' :
+          person.state === 'in_room' ? 'Home' :
+          person.state === 'walking' ? 'Walking' :
+          person.state === 'waiting_elevator' ? 'Waiting' :
+          person.state === 'in_elevator' ? 'Elevator' :
+          person.state === 'spawning' ? 'Arriving' : person.state;
+
+        html += `<div style="display: flex; align-items: center; padding: 2px 0 2px 18px; gap: 10px; font-size: 12px;">
+          <span style="color: #666; width: 55px;">${stateLabel}</span>
+          <span>${satEmoji}</span>
+          <span style="color: ${satColor};">${psat}%</span>
+        </div>`;
+      }
+
+      html += '</div>';
+    }
+
+    body.innerHTML = html;
   }
 
   updateSpeedButtons() {
