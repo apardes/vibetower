@@ -32,6 +32,7 @@ export class GridOverlay {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     const mat = new THREE.LineBasicMaterial({ color: '#ffffff', opacity: 0.1, transparent: true });
     this.gridLines = new THREE.LineSegments(geo, mat);
+    this.gridLines.visible = false;
     this.group.add(this.gridLines);
   }
 

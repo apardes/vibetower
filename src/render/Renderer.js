@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CAMERA_VIEW_WIDTH, CAMERA_VIEW_HEIGHT, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX } from '../constants.js';
 
 export class Renderer {
@@ -9,6 +13,8 @@ export class Renderer {
     this.webgl = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.webgl.setPixelRatio(window.devicePixelRatio);
     this.webgl.setSize(window.innerWidth, window.innerHeight);
+    this.webgl.toneMapping = THREE.ACESFilmicToneMapping;
+    this.webgl.toneMappingExposure = 1.0;
 
     // Scene
     this.scene = new THREE.Scene();
@@ -25,6 +31,19 @@ export class Renderer {
     this.camera.position.set(20, 5, 10); // center on tower, slightly above ground
     this.zoom = 1;
 
+    // Post-processing
+    this.composer = new EffectComposer(this.webgl);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      0.8,   // strength — moderate, consistent glow
+      0.35,  // radius — tight halos
+      0.5    // threshold — only emissive sources bloom
+    );
+    this.composer.addPass(this.bloomPass);
+    this.composer.addPass(new OutputPass());
+
     // Handle resize
     window.addEventListener('resize', () => this.onResize());
 
@@ -38,6 +57,7 @@ export class Renderer {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.webgl.setSize(w, h);
+    this.composer.setSize(w, h);
     this.updateCameraFrustum();
   }
 
@@ -57,11 +77,17 @@ export class Renderer {
     this.camera.updateProjectionMatrix();
   }
 
+  // Adjust bloom based on night factor (called from main.js onUpdate)
+  setNightBloom(nightFactor) {
+    // Subtle during day, slightly stronger at night — never extreme
+    this.bloomPass.strength = 0.4 + nightFactor * 0.4;
+  }
+
   animate() {
     requestAnimationFrame(() => this.animate());
     const delta = this.clock.getDelta();
     if (this.onUpdate) this.onUpdate(delta);
-    this.webgl.render(this.scene, this.camera);
+    this.composer.render();
   }
 
   // Convert screen coordinates to world coordinates

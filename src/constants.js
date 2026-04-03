@@ -32,7 +32,7 @@ export const ROOM_TYPES = {
     cost: 5000,
     income: 0,
     capacity: 0,
-    color: '#d4c5a9',
+    color: '#bfb398',
     unlockStar: 1,
     floorRestriction: 0, // lobby only on ground floor
   },
@@ -43,7 +43,7 @@ export const ROOM_TYPES = {
     cost: 20000,
     income: 500,
     capacity: 2,
-    color: '#7eb5e0',
+    color: '#6a9cc4',
     unlockStar: 1,
   },
   office: {
@@ -53,7 +53,7 @@ export const ROOM_TYPES = {
     cost: 40000,
     income: 1000,
     capacity: 6,
-    color: '#b8d4a3',
+    color: '#9dba8c',
     unlockStar: 1,
   },
   retail: {
@@ -63,8 +63,8 @@ export const ROOM_TYPES = {
     cost: 30000,
     income: 800,
     capacity: 0,
-    color: '#f0c674',
-    unlockStar: 2,
+    color: '#d4ad60',
+    unlockStar: 1,
   },
   restaurant: {
     name: 'Restaurant',
@@ -73,8 +73,8 @@ export const ROOM_TYPES = {
     cost: 80000,
     income: 2000,
     capacity: 0,
-    color: '#e88a6a',
-    unlockStar: 3,
+    color: '#c87858',
+    unlockStar: 1,
   },
   elevator: {
     name: 'Elevator',

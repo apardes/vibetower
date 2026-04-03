@@ -267,13 +267,11 @@ export class Simulation {
     }
 
     for (const [, elevator] of tower.elevators) {
-      // Snapshot the stopped floor BEFORE update (which might clear it)
-      const wasStoppedAt = elevator.stoppedAtFloor;
-
       elevator.update(tickHours);
 
-      // Use whichever floor the elevator is/was stopped at
-      const stoppedFloor = elevator.stoppedAtFloor >= 0 ? elevator.stoppedAtFloor : wasStoppedAt;
+      // Only use the stopped floor AFTER update — no snapshots
+      // People can only get on/off when the elevator is fully stopped
+      const stoppedFloor = elevator.stoppedAtFloor;
 
       // Update position of everyone riding this cab
       for (const personId of elevator.passengers) {
@@ -284,7 +282,7 @@ export class Simulation {
         }
       }
 
-      // Handle loading/unloading when stopped at a floor
+      // Handle loading/unloading ONLY when fully stopped at a floor
       if (stoppedFloor < 0) continue;
 
       // Unload: passengers whose targetFloor is this floor

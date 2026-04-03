@@ -20,7 +20,7 @@ A SimTower-style browser game for a vibe-coded game hackathon. 2D cross-section 
 - **UI**: HTML/CSS overlays for toolbar, HUD, tooltips (not ThreeJS text)
 - **Hosting**: VPS with nginx serving static files
 - **Backend**: None. 100% client-side. No API.
-- **Art**: Fully procedural. No sprites, no textures, no image files. Everything is ThreeJS `PlaneGeometry` + `MeshBasicMaterial` (flat colors).
+- **Art**: Fully procedural. No sprites, no textures, no image files. All geometry built from ThreeJS primitives (PlaneGeometry, CircleGeometry, etc.). Materials are `MeshStandardMaterial` with lighting and emissive properties. Post-processing via `EffectComposer` + `UnrealBloomPass`.
 
 ## Local Development
 
@@ -35,8 +35,9 @@ No build step. No install step. Just serve the files.
 
 ```
 vibejam/
-├── index.html              # Entry point, import map for ThreeJS
+├── index.html              # Entry point, import map for ThreeJS + addons
 ├── CLAUDE.md               # This file
+├── examples/simtower/       # Reference screenshots from original SimTower
 ├── src/
 │   ├── main.js             # Wires everything together
 │   ├── constants.js         # Grid sizes, room defs, costs, colors, schedules
@@ -50,11 +51,16 @@ vibejam/
 │   │   ├── Simulation.js    # Tick-based game loop, people movement, elevator dispatch
 │   │   └── StarRating.js    # Star progression thresholds
 │   ├── render/
-│   │   ├── Renderer.js      # ThreeJS setup, orthographic camera, render loop
-│   │   ├── TowerRenderer.js # Draws rooms as colored rectangles with details
-│   │   ├── ElevatorRenderer.js # Draws shafts and animated cabs
-│   │   ├── PersonRenderer.js   # Draws tiny people moving around
-│   │   ├── SkyRenderer.js      # Day/night gradient background
+│   │   ├── Renderer.js      # ThreeJS setup, ortho camera, EffectComposer, render loop
+│   │   ├── LightingSystem.js # Scene lights (ambient, hemisphere, directional sun)
+│   │   ├── TowerRenderer.js # Rooms, building exterior, ground
+│   │   ├── RoomInteriors.js  # Factory for per-room-type interior detail geometry
+│   │   ├── ElevatorRenderer.js # Shafts, cabs with interior detail
+│   │   ├── PersonRenderer.js   # Articulated people with walking animation
+│   │   ├── SkyRenderer.js      # Day/night gradient, stars, sun/moon, clouds
+│   │   ├── WeatherSystem.js    # Rain particles
+│   │   ├── ParticleEffects.js  # Construction sparkle, restaurant steam
+│   │   ├── FloatingText.js     # Floating income text via CanvasTexture
 │   │   └── GridOverlay.js      # Build-mode grid lines + placement preview
 │   ├── ui/
 │   │   ├── UIManager.js     # Creates toolbar and HUD
@@ -141,6 +147,62 @@ New tenants trickle in throughout the day (small chance per tick per empty slot,
 - If no elevator is available, people wait at ground floor
 - People walk in from the map edges and walk out the same way
 
+## Visual Design Standards
+
+This game is a **modern recreation of the original SimTower**. Reference screenshots are in `examples/simtower/`. Study them before making any visual changes.
+
+### Core Visual Identity
+
+The game is a **2D cross-section** of a building. The player is looking at the building as if it has been sliced open, revealing every room's interior. This is the defining visual metaphor — everything must reinforce it.
+
+**What makes the original SimTower look good:**
+1. **Strong structural grid** — dark steel/concrete beams form a visible frame around every floor and the building edges. This is THE signature visual element.
+2. **Clear floor separation** — each floor has distinct ceiling/floor dividers. You can always tell where one floor ends and another begins.
+3. **Readable room interiors** — each room type is instantly identifiable by layout and color palette at a glance.
+4. **Building dominates the scene** — sky and ground are secondary backdrops. The building cross-section is the star.
+5. **Muted, natural colors** — nothing is oversaturated or neon (except actual neon signs). Colors feel like real materials.
+6. **Consistent detail level** — all elements share the same fidelity. No part looks more polished or more rough than another.
+7. **Clean and uncluttered** — no gratuitous effects. Every visual element serves readability or atmosphere.
+
+### Visual Hierarchy (most prominent → least)
+
+1. Building structural frame (floor/ceiling lines, wall edges, roof)
+2. Room interiors (furniture, fixtures, color-coded by type)
+3. Elevator shafts (dark vertical corridors)
+4. People (small but recognizable figures with activity)
+5. Ground level (lobby entrance, sidewalk, street)
+6. Sky/atmosphere (simple, non-distracting backdrop)
+
+### Anti-Patterns — DO NOT DO THESE
+
+- **Blinding bloom** — emissive values above 1.5 for anything except neon signs. Bloom should be subtle atmosphere, not a flashlight in your face.
+- **Tacky decorative elements** — random grass tufts, scattered particles for no reason, visual noise that doesn't serve gameplay.
+- **Visual effects as a substitute for good design** — if a room doesn't look good without bloom/particles/weather, fix the room first.
+- **Inconsistent fidelity** — one room with 20 detail objects next to another with 3. Everything at the same level.
+- **Oversized or undersized elements** — people, furniture, and fixtures must be proportional to the 1-unit grid cells.
+
+### Color Palette Philosophy
+
+- Room base colors should be **muted and warm** — think painted drywall, not candy.
+- Structural elements (beams, walls, floor lines) should be **dark neutral grays** — `#3a3a3a` to `#5a5a5a`.
+- Window glow at night should be **warm amber/yellow** — `#ffdd66` to `#ffaa44`, NOT pure white.
+- Sky should be **clean gradients** — no busy cloud formations competing with the building.
+
+### ThreeJS Lighting Rules
+
+These values have been tuned. Do not change without testing and comparing to the SimTower reference screenshots.
+
+- **Ambient light**: 0.15–0.20 intensity. Never above 0.25.
+- **Hemisphere light**: 0.15–0.50 intensity depending on time of day.
+- **Directional sun**: 0.08 at night (moonlight fill), 0.70 at noon.
+- **Emissive intensity ranges**: Windows 0.8–1.0, screens 0.5–1.0, ceiling lights 0.5–0.9, neon signs 1.5–2.5.
+- **Bloom**: threshold 0.5, radius 0.35, strength 0.4–0.8. Bloom should be a subtle halo, not a nuclear glow.
+- **Tone mapping**: ACES Filmic at exposure 1.0. Do not raise exposure above 1.1.
+
+### Workflow Rule: One Thing at a Time
+
+Do NOT make sweeping changes across multiple visual systems simultaneously. Work on one element (e.g., "apartment interiors" or "elevator shaft visuals"), get it right, verify it looks good, then move to the next. This prevents cascading quality issues.
+
 ## Design Decisions
 
 - **No eviction system** — tenants do not leave due to low satisfaction. This was explicitly removed.
@@ -173,12 +235,12 @@ New tenants trickle in throughout the day (small chance per tick per empty slot,
 
 ## Known Issues / TODO
 
-- Aesthetics need work — rooms are plain colored rectangles, no interior detail polish yet
+- Visual polish needed — room interiors, building structure, and people all need to match the quality level of the original SimTower reference screenshots
+- Building lacks the strong structural frame (dark steel beams) that defines the SimTower look
 - Save/load via localStorage not implemented
 - No sound effects
 - No title screen
 - No notification system (e.g. "New tenants moved in!")
-- No floating money text on income/expense
 
 ## Working With This Codebase
 
@@ -188,3 +250,7 @@ New tenants trickle in throughout the day (small chance per tick per empty slot,
 - **Do not add features without approval**. Ask before implementing anything not explicitly requested.
 - **Person owns their state**. The person object tracks where they are and what they're doing. The elevator is just transport.
 - **EventBus for decoupling**. Systems communicate via events, not direct references (except where main.js wires things together).
+- **One visual change at a time**. Never make sweeping changes across multiple renderers simultaneously. Fix one thing, verify, move on.
+- **Reference the original**. Before changing any visual, look at `examples/simtower/` screenshots. The goal is a modern recreation of that style.
+- **Test lighting changes at both day AND night**. Lighting that looks good at noon can be invisible at midnight and vice versa.
+- **ThreeJS addons** are available via `import ... from 'three/addons/...'` (mapped in index.html import map to esm.sh).

@@ -1,8 +1,5 @@
 import { generateId } from '../utils/helpers.js';
 
-// Simplified elevator: just a cab that moves between floors.
-// All passenger logic lives in Simulation.
-
 export class Elevator {
   constructor(gridX, minFloor, maxFloor) {
     this.id = generateId();
@@ -10,14 +7,17 @@ export class Elevator {
     this.minFloor = minFloor;
     this.maxFloor = maxFloor;
 
-    this.currentFloor = minFloor; // float for smooth animation
-    this.targetFloor = minFloor;
+    this.currentFloor = minFloor; // always an integer
     this.direction = 1;           // 1=up, -1=down
     this.state = 'idle';          // 'idle', 'moving', 'stopped'
-    this.stopTimer = 0;           // countdown when stopped at a floor
-    this.passengers = new Set();  // person IDs currently in cab
-    this.requestedFloors = new Set(); // floors the cab needs to visit
+    this.moveTimer = 0;           // time remaining before arriving at next floor
+    this.stopTimer = 0;           // time remaining at a stop
+    this.passengers = new Set();
+    this.requestedFloors = new Set();
     this.capacity = 8;
+
+    this.moveTime = 0.08;  // game-hours to travel one floor
+    this.stopTime = 0.15;  // game-hours to stay stopped (visible pause)
   }
 
   requestFloor(floor) {
@@ -25,9 +25,6 @@ export class Elevator {
       this.requestedFloors.add(floor);
       if (this.state === 'idle') {
         this.pickNextTarget();
-        if (this.state === 'idle' && this.requestedFloors.size > 0) {
-          this.state = 'moving';
-        }
       }
     }
   }
@@ -36,7 +33,7 @@ export class Elevator {
     if (this.state === 'stopped') {
       this.stopTimer -= tickHours;
       if (this.stopTimer <= 0) {
-        this.requestedFloors.delete(Math.round(this.currentFloor));
+        this.requestedFloors.delete(this.currentFloor);
         this.pickNextTarget();
       }
       return;
@@ -44,23 +41,28 @@ export class Elevator {
 
     if (this.state === 'idle') return;
 
-    // Moving
-    const speed = 10; // floors per game-hour
-    const dist = this.targetFloor - this.currentFloor;
+    // Moving — count down until we arrive at the next floor
+    this.moveTimer -= tickHours;
+    if (this.moveTimer <= 0) {
+      // Arrived at the next floor
+      this.currentFloor += this.direction;
 
-    if (Math.abs(dist) < 0.05) {
-      this.currentFloor = this.targetFloor;
-      this.state = 'stopped';
-      this.stopTimer = 0.04; // brief pause at floor
-    } else {
-      const move = Math.sign(dist) * speed * tickHours;
-      if (Math.abs(move) > Math.abs(dist)) {
-        this.currentFloor = this.targetFloor;
+      // Check if this floor is requested — if so, stop here
+      if (this.requestedFloors.has(this.currentFloor)) {
         this.state = 'stopped';
-        this.stopTimer = 0.04;
-      } else {
-        this.currentFloor += move;
+        this.stopTimer = this.stopTime;
+        return;
       }
+
+      // Check if we've reached the target floor
+      if (this.currentFloor === this.targetFloor) {
+        this.state = 'stopped';
+        this.stopTimer = this.stopTime;
+        return;
+      }
+
+      // Keep moving — reset timer for next floor
+      this.moveTimer = this.moveTime;
     }
   }
 
@@ -71,13 +73,13 @@ export class Elevator {
     }
 
     const floors = [...this.requestedFloors];
-    const current = Math.round(this.currentFloor);
+    const current = this.currentFloor;
 
     // If we're already at a requested floor, stop here
     if (this.requestedFloors.has(current)) {
-      this.targetFloor = current;
       this.state = 'stopped';
-      this.stopTimer = 0.04;
+      this.stopTimer = this.stopTime;
+      this.targetFloor = current;
       return;
     }
 
@@ -91,7 +93,7 @@ export class Elevator {
         ? Math.min(...inDir)
         : Math.max(...inDir);
     } else {
-      // Reverse
+      // Reverse direction
       this.direction *= -1;
       const inNewDir = floors.filter(f =>
         this.direction > 0 ? f > current : f < current
@@ -102,14 +104,16 @@ export class Elevator {
           : Math.max(...inNewDir);
       } else {
         this.targetFloor = floors[0];
+        this.direction = Math.sign(floors[0] - current) || 1;
       }
     }
 
     this.state = 'moving';
+    this.moveTimer = this.moveTime;
   }
 
   get stoppedAtFloor() {
     if (this.state !== 'stopped') return -1;
-    return Math.round(this.currentFloor);
+    return this.currentFloor;
   }
 }
