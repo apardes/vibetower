@@ -48,14 +48,25 @@ export class ActivityLog {
     this.btn.textContent = '\u{1F4CB} Log';
     this.btn.title = 'Activity Log';
     this.btn.style.cssText = `
-      border: 1px solid #555;
-      border-radius: 4px;
-      background: #2a2a3a;
-      color: #aaa;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #888;
       cursor: pointer;
-      font-size: 12px;
-      padding: 2px 8px;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      padding: 4px 10px;
+      transition: all 0.15s;
     `;
+    this.btn.addEventListener('mouseenter', () => {
+      this.btn.style.background = 'rgba(255,255,255,0.06)';
+      this.btn.style.color = '#bbb';
+    });
+    this.btn.addEventListener('mouseleave', () => {
+      this.btn.style.background = 'transparent';
+      this.btn.style.color = '#888';
+    });
     this.btn.addEventListener('click', () => this.toggle());
     // Not appended here — UIManager places it in the HUD
   }
