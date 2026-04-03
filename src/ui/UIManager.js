@@ -70,6 +70,7 @@ export class UIManager {
       { id: 'helpOverlay', el: this.hud.helpOverlay, trigger: null, close: () => { this.hud.helpOverlay.style.display = 'none'; } },
       { id: 'logPanel', el: this.activityLog.panel, trigger: this.activityLog.btn, close: () => { this.activityLog.panel.style.display = 'none'; } },
       { id: 'infoPanel', el: this.toolbar.infoPanel, trigger: null, close: () => { this.toolbar.infoPanel.style.display = 'none'; } },
+      { id: 'submenu', el: this.toolbar.openCategoryId ? this.toolbar.categoryBtns[this.toolbar.openCategoryId]?.submenu : null, trigger: this.toolbar.el, close: () => { this.toolbar.closeSubmenu(); } },
     ];
   }
 
