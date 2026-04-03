@@ -1,7 +1,7 @@
 import { eventBus } from '../utils/EventBus.js';
 import { Room } from '../game/Room.js';
 import { Elevator } from '../game/Elevator.js';
-import { ROOM_TYPES } from '../constants.js';
+import { ROOM_TYPES, TOWER_MAX_WIDTH, TOWER_MAX_FLOORS } from '../constants.js';
 import { worldToGrid } from '../utils/helpers.js';
 
 export class BuildTool {
@@ -163,8 +163,8 @@ export class BuildTool {
   }
 
   canPlaceElevator(gridX, minY, maxY) {
-    if (gridX < 0 || gridX >= 40) return false;
-    if (minY < 0 || maxY >= 30) return false;
+    if (gridX < 0 || gridX >= TOWER_MAX_WIDTH) return false;
+    if (minY < 0 || maxY >= TOWER_MAX_FLOORS) return false;
     const floors = maxY - minY + 1;
     if (this.gameState.money < ROOM_TYPES.elevator.costPerFloor * floors) return false;
 

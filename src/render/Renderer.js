@@ -28,7 +28,7 @@ export class Renderer {
       halfH, -halfH,
       -100, 100
     );
-    this.camera.position.set(20, 5, 10); // center on tower, slightly above ground
+    this.camera.position.set(500, 5, 10); // center of grid
     this.zoom = 1;
 
     // Post-processing

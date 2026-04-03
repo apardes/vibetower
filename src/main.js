@@ -58,7 +58,7 @@ renderer.onUpdate = (delta) => {
   const elapsed = renderer.clock.getElapsedTime();
   lighting.update(gameState.time.hour);
   renderer.setNightBloom(lighting.nightFactor);
-  sky.update(delta, gameState.time.hour, lighting.nightFactor);
+  sky.update(delta, gameState.time.hour, lighting.nightFactor, renderer.camera.position.x);
   weather.update(delta, gameState.time.hour, lighting);
   towerRenderer.updateRoomInteriors(gameState.time.hour, lighting.nightFactor, elapsed);
   towerRenderer.updateAnimations(delta);

@@ -15,7 +15,7 @@ export class LightingSystem {
 
     // Directional — sun for exterior. Varies with time of day.
     this.sun = new THREE.DirectionalLight('#ffffff', 2.0);
-    this.sun.position.set(20, 30, 10);
+    this.sun.position.set(500, 30, 10);
     scene.add(this.sun);
   }
 

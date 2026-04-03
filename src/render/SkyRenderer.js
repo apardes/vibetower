@@ -64,13 +64,13 @@ export class SkyRenderer {
     // Sky plane with 5 vertical rows for gradient bands
     // PlaneGeometry(width, height, wSegments, hSegments)
     // 1x4 segments = 2 cols x 5 rows = 10 vertices
-    const geo = new THREE.PlaneGeometry(200, 200, 1, 4);
+    const geo = new THREE.PlaneGeometry(1200, 200, 1, 4);
     const colorAttr = new Float32Array(10 * 3);
     geo.setAttribute('color', new THREE.BufferAttribute(colorAttr, 3));
 
     const mat = new THREE.MeshBasicMaterial({ vertexColors: true, depthWrite: false });
     this.mesh = new THREE.Mesh(geo, mat);
-    this.mesh.position.set(20, 10, -50);
+    this.mesh.position.set(500, 10, -50);
     scene.add(this.mesh);
 
     // Stars
@@ -240,7 +240,9 @@ export class SkyRenderer {
     colors.needsUpdate = true;
   }
 
-  update(delta, hour, nightFactor) {
+  update(delta, hour, nightFactor, cameraX) {
+    const cx = cameraX || 20;
+
     // Stars
     if (nightFactor > 0.1) {
       this.stars.points.visible = true;
@@ -256,7 +258,7 @@ export class SkyRenderer {
       const angle = t * Math.PI;
       const elevation = Math.sin(angle);
 
-      this.sunGroup.position.x = 20 + Math.cos(angle) * 55;
+      this.sunGroup.position.x = cx + Math.cos(angle) * 55;
       this.sunGroup.position.y = elevation * 30 + 5;
 
       // Fade smoothly at horizon
@@ -293,7 +295,7 @@ export class SkyRenderer {
       const angle = t * Math.PI;
       const elevation = Math.sin(angle);
 
-      this.moonGroup.position.x = 20 + Math.cos(angle) * 45;
+      this.moonGroup.position.x = cx + Math.cos(angle) * 45;
       this.moonGroup.position.y = elevation * 25 + 8;
 
       const horizonFade = Math.min(1, elevation * 4);

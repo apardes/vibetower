@@ -56,7 +56,7 @@ export class CameraController {
   }
 
   clampCamera() {
-    this.camera.position.x = clamp(this.camera.position.x, -5, TOWER_MAX_WIDTH + 5);
-    this.camera.position.y = clamp(this.camera.position.y, -5, TOWER_MAX_FLOORS + 5);
+    this.camera.position.x = clamp(this.camera.position.x, 50, TOWER_MAX_WIDTH - 50);
+    this.camera.position.y = clamp(this.camera.position.y, -10, TOWER_MAX_FLOORS + 5);
   }
 }

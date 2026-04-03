@@ -1,9 +1,9 @@
 // Grid dimensions
 export const CELL_WIDTH = 1;
 export const CELL_HEIGHT = 1;
-export const TOWER_MAX_WIDTH = 40;   // grid cells wide (index 0-39, center at 20)
+export const TOWER_MAX_WIDTH = 1000; // effectively unlimited
 export const TOWER_MAX_FLOORS = 30;  // floors 0-29
-export const TOWER_CENTER_X = 20;    // lobby center column
+export const TOWER_CENTER_X = 500;   // camera starts in the middle of the grid
 
 // Camera defaults
 export const CAMERA_VIEW_WIDTH = 30;

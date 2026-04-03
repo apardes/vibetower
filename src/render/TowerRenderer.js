@@ -21,65 +21,58 @@ export class TowerRenderer {
   }
 
   createGround() {
-    const cx = TOWER_MAX_WIDTH / 2;
-    const fullW = TOWER_MAX_WIDTH + 40;
+    const cx = 500; // visual center — matches camera start
+    const W = 2000; // massive — always fills screen
 
-    // Ground surface line — thin grass strip at y=0
     const grassSurface = new THREE.Mesh(
-      new THREE.PlaneGeometry(fullW, 0.12),
+      new THREE.PlaneGeometry(W, 0.12),
       new THREE.MeshStandardMaterial({ color: '#4a8c45', roughness: 0.9, metalness: 0 })
     );
     grassSurface.position.set(cx, -0.06, -0.5);
     this.towerGroup.add(grassSurface);
 
-    // Topsoil layer — dark rich earth just below grass
     const topsoil = new THREE.Mesh(
-      new THREE.PlaneGeometry(fullW, 1.5),
+      new THREE.PlaneGeometry(W, 2),
       new THREE.MeshStandardMaterial({ color: '#5c4430', roughness: 1.0, metalness: 0 })
     );
-    topsoil.position.set(cx, -0.87, -2);
+    topsoil.position.set(cx, -1.1, -2);
     this.towerGroup.add(topsoil);
 
-    // Mid earth layer — lighter brown
     const midEarth = new THREE.Mesh(
-      new THREE.PlaneGeometry(fullW, 3),
+      new THREE.PlaneGeometry(W, 5),
       new THREE.MeshStandardMaterial({ color: '#6b5540', roughness: 1.0, metalness: 0 })
     );
-    midEarth.position.set(cx, -3.12, -2);
+    midEarth.position.set(cx, -4.6, -2);
     this.towerGroup.add(midEarth);
 
-    // Deep earth / clay layer
     const deepEarth = new THREE.Mesh(
-      new THREE.PlaneGeometry(fullW, 5),
+      new THREE.PlaneGeometry(W, 15),
       new THREE.MeshStandardMaterial({ color: '#584838', roughness: 1.0, metalness: 0 })
     );
-    deepEarth.position.set(cx, -7.12, -2);
+    deepEarth.position.set(cx, -14.6, -2);
     this.towerGroup.add(deepEarth);
 
-    // Rock layer at the bottom
     const rock = new THREE.Mesh(
-      new THREE.PlaneGeometry(fullW, 6),
+      new THREE.PlaneGeometry(W, 200),
       new THREE.MeshStandardMaterial({ color: '#4a4440', roughness: 0.95, metalness: 0.05 })
     );
-    rock.position.set(cx, -12.62, -2);
+    rock.position.set(cx, -122, -2);
     this.towerGroup.add(rock);
 
-    // Thin layer lines between soil strata (subtle horizontal lines)
     const strataMat = new THREE.MeshStandardMaterial({ color: '#4a3a28', roughness: 1.0, metalness: 0 });
-    for (const y of [-1.6, -4.6, -9.6]) {
-      const line = new THREE.Mesh(new THREE.PlaneGeometry(fullW, 0.04), strataMat);
+    for (const y of [-2.1, -7.1, -22]) {
+      const line = new THREE.Mesh(new THREE.PlaneGeometry(W, 0.04), strataMat);
       line.position.set(cx, y, -1.9);
       this.towerGroup.add(line);
     }
 
-    // Small rocks/pebbles scattered in earth cross-section
     const pebbleMat = new THREE.MeshStandardMaterial({ color: '#7a7068', roughness: 0.8, metalness: 0.05 });
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 30; i++) {
       const size = 0.06 + Math.random() * 0.12;
       const pebble = new THREE.Mesh(new THREE.CircleGeometry(size, 6), pebbleMat);
       pebble.position.set(
-        Math.random() * (fullW - 4) - (fullW / 2 - 2) + cx,
-        -(1 + Math.random() * 8),
+        cx + (Math.random() - 0.5) * 100,
+        -(1 + Math.random() * 18),
         -1.8
       );
       this.towerGroup.add(pebble);
