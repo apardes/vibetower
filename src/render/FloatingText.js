@@ -9,11 +9,11 @@ export class FloatingText {
     this.textureCache = new Map();
 
     eventBus.on('rentCollected', ({ income, expense, net }) => {
-      if (net === 0) return;
+      if (income <= 0) return;
 
-      // Spawn floating texts at a few random occupied rooms
+      // Spawn floating texts only at rooms with actual tenants
       const rooms = [...this.gameState.tower.rooms.values()].filter(
-        r => r.type !== 'elevator' && (r.occupied || r.type === 'retail' || r.type === 'restaurant')
+        r => r.type !== 'elevator' && r.type !== 'lobby' && r.tenants && r.tenants.length > 0
       );
       if (rooms.length === 0) return;
 

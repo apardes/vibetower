@@ -98,14 +98,15 @@ export class Simulation {
       }
     } else {
       // Need elevator to get to room's floor
-      const elevator = this.findNearestElevator(person.position.x, person.floor, homeRoom.gridY);
+      const destX = homeRoom.gridX + homeRoom.width / 2;
+      const elevator = this.findNearestElevator(person.position.x, person.floor, homeRoom.gridY, destX);
       if (!elevator) {
         // No elevator — can't reach room, remove this person entirely
         homeRoom.tenants = homeRoom.tenants.filter(id => id !== person.id);
         this.gameState.people.delete(person.id);
         return;
       }
-      this.startElevatorTrip(person, homeRoom.gridY, tickHours);
+      this.startElevatorTrip(person, homeRoom.gridY, tickHours, homeRoom.gridX + homeRoom.width / 2);
     }
   }
 
@@ -166,8 +167,8 @@ export class Simulation {
   }
 
   // Start a trip: walk to elevator, queue up
-  startElevatorTrip(person, destFloor, tickHours) {
-    const elevator = this.findNearestElevator(person.position.x, person.floor, destFloor);
+  startElevatorTrip(person, destFloor, tickHours, destX) {
+    const elevator = this.findNearestElevator(person.position.x, person.floor, destFloor, destX);
     if (!elevator) {
       // No elevator available — stay in room, cancel the trip
       person.state = 'in_room';
@@ -221,7 +222,7 @@ export class Simulation {
       this.arriveAtRoom(person, homeRoom);
     } else if (homeRoom) {
       // Wrong floor — take elevator to correct floor
-      this.startElevatorTrip(person, homeRoom.gridY, 0);
+      this.startElevatorTrip(person, homeRoom.gridY, 0, homeRoom.gridX + homeRoom.width / 2);
     } else {
       // No home room — shouldn't happen, but park them
       person.state = 'in_room';
@@ -243,14 +244,20 @@ export class Simulation {
     person.isOut = false;
   }
 
-  findNearestElevator(fromX, fromFloor, targetFloor) {
+  findNearestElevator(fromX, fromFloor, targetFloor, destX) {
     let best = null;
     let bestDist = Infinity;
+    const tower = this.gameState.tower;
 
-    for (const [, elevator] of this.gameState.tower.elevators) {
+    for (const [, elevator] of tower.elevators) {
       if (fromFloor >= elevator.minFloor && fromFloor <= elevator.maxFloor &&
           targetFloor >= elevator.minFloor && targetFloor <= elevator.maxFloor) {
-        const dist = Math.abs(elevator.gridX + 0.5 - fromX);
+        const elevX = elevator.gridX + 0.5;
+        // Must have a walkable path from person to elevator on current floor
+        if (!tower.hasFloorPath(fromFloor, fromX, elevX)) continue;
+        // Must have a walkable path from elevator to destination on target floor
+        if (destX !== undefined && !tower.hasFloorPath(targetFloor, elevX, destX)) continue;
+        const dist = Math.abs(elevX - fromX);
         if (dist < bestDist) {
           bestDist = dist;
           best = elevator;
@@ -315,9 +322,10 @@ export class Simulation {
           person.position.y = stoppedFloor + 0.5;
           person.elevatorId = null;
 
-          // Walk to home room if on the right floor, otherwise walk off
+          // Walk to home room if on the right floor AND there's a walkable path
           const homeRoom = tower.rooms.get(person.homeRoom);
-          if (homeRoom && homeRoom.gridY === stoppedFloor) {
+          if (homeRoom && homeRoom.gridY === stoppedFloor &&
+              tower.hasFloorPath(stoppedFloor, person.position.x, homeRoom.gridX + homeRoom.width / 2)) {
             person.targetX = homeRoom.gridX + person.homeOffset * homeRoom.width;
           } else if (stoppedFloor === 0 && person.isOut) {
             // Going outside

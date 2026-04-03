@@ -62,6 +62,20 @@ export class Tower {
     return this.grid[floorY].some(cell => cell !== null);
   }
 
+  // Check if there's a continuous walkable path between two x positions on a floor
+  // Ground floor (0) is always walkable — people enter/exit the building there
+  hasFloorPath(floorY, fromX, toX) {
+    if (floorY === 0) return true;
+    if (floorY < 0 || floorY >= TOWER_MAX_FLOORS) return false;
+    const minX = Math.min(Math.floor(fromX), Math.floor(toX));
+    const maxX = Math.max(Math.floor(fromX), Math.floor(toX));
+    for (let x = minX; x <= maxX; x++) {
+      if (x < 0 || x >= TOWER_MAX_WIDTH) continue;
+      if (this.grid[floorY][x] === null) return false;
+    }
+    return true;
+  }
+
   // Get the highest occupied floor
   getHighestFloor() {
     for (let y = TOWER_MAX_FLOORS - 1; y >= 0; y--) {
