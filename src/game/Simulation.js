@@ -98,6 +98,13 @@ export class Simulation {
       }
     } else {
       // Need elevator to get to room's floor
+      const elevator = this.findNearestElevator(person.position.x, person.floor, homeRoom.gridY);
+      if (!elevator) {
+        // No elevator — can't reach room, remove this person entirely
+        homeRoom.tenants = homeRoom.tenants.filter(id => id !== person.id);
+        this.gameState.people.delete(person.id);
+        return;
+      }
       this.startElevatorTrip(person, homeRoom.gridY, tickHours);
     }
   }
@@ -105,6 +112,9 @@ export class Simulation {
   handleInRoom(person, homeRoom, hour) {
     const sched = person.schedule;
     if (!sched || sched.type === 'static') return;
+
+    // Don't process schedule if person isn't actually on their room's floor
+    if (person.floor !== homeRoom.gridY) return;
 
     if (sched.type === 'apartment') {
       // Time to leave for work?
@@ -137,10 +147,12 @@ export class Simulation {
   }
 
   sendPersonOut(person, fromRoom) {
+    // Only send out if person is actually on the room's floor
+    if (person.floor !== fromRoom.gridY) return;
+
     person.isOut = true;
-    person.position.x = fromRoom.gridX + fromRoom.width / 2;
+    // Don't teleport — keep current position, let them walk from where they are
     person.position.y = fromRoom.gridY + 0.5;
-    person.floor = fromRoom.gridY;
 
     if (fromRoom.gridY === 0) {
       // Walk off screen
@@ -157,9 +169,10 @@ export class Simulation {
   startElevatorTrip(person, destFloor, tickHours) {
     const elevator = this.findNearestElevator(person.position.x, person.floor, destFloor);
     if (!elevator) {
-      // No elevator available — just wait on current floor (don't teleport)
+      // No elevator available — stay in room, cancel the trip
       person.state = 'in_room';
-      // Keep them visible on their current floor
+      person.isOut = false;
+      person.hasLeftToday = false;
       person.position.y = person.floor + 0.5;
       return;
     }
@@ -206,7 +219,11 @@ export class Simulation {
     const homeRoom = this.gameState.tower.rooms.get(person.homeRoom);
     if (homeRoom && person.floor === homeRoom.gridY) {
       this.arriveAtRoom(person, homeRoom);
+    } else if (homeRoom) {
+      // Wrong floor — take elevator to correct floor
+      this.startElevatorTrip(person, homeRoom.gridY, 0);
     } else {
+      // No home room — shouldn't happen, but park them
       person.state = 'in_room';
     }
   }
@@ -402,6 +419,8 @@ export class Simulation {
 
     for (const [, person] of people) {
       if (!person.isOut || person.hasReturnedToday) continue;
+      // Only return people who have actually left the building (hidden = offscreen)
+      if (!person.hidden) continue;
 
       const sched = person.schedule;
       let returnHour = 99;

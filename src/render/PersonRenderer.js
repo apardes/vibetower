@@ -164,7 +164,7 @@ export class PersonRenderer {
 
       const h = entry.hash;
       const ud = entry.figure.userData;
-      const speed = 10 + (h % 4); // slightly different walk speeds
+      const speed = 10 + (h % 4);
 
       // Always sync position from game state every frame
       entry.figure.position.x = person.position.x;
