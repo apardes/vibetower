@@ -14,7 +14,7 @@ import { InputManager } from './input/InputManager.js';
 import { CameraController } from './input/CameraController.js';
 import { BuildTool } from './input/BuildTool.js';
 import { UIManager } from './ui/UIManager.js';
-import { Tooltip } from './ui/Tooltip.js';
+import { UnitDetail } from './ui/UnitDetail.js';
 import { eventBus } from './utils/EventBus.js';
 
 // Rendering
@@ -41,7 +41,13 @@ const buildTool = new BuildTool(gameState, gameState.tower, towerRenderer, gridO
 
 // UI
 const ui = new UIManager(gameState);
-const tooltip = new Tooltip(gameState);
+const unitDetail = new UnitDetail(gameState, renderer);
+ui.externalPanels.push({
+  id: 'unitDetail',
+  el: unitDetail.panel,
+  trigger: null,
+  close: () => unitDetail.close(),
+});
 
 // Simulation
 const simulation = new Simulation(gameState, sky);

@@ -10,6 +10,9 @@ export class UIManager {
     this.activityLog = new ActivityLog(gameState);
     this.hud.leftSection.appendChild(this.activityLog.btn);
 
+    // External panels can register here
+    this.externalPanels = [];
+
     // Central panel management — click outside closes, opening one closes others
     this.panels = [];
     this._setupPanelManagement();
@@ -19,13 +22,17 @@ export class UIManager {
     // Collect all panel references once they exist
     // We check lazily since some panels are created on first click
     document.addEventListener('mousedown', (e) => {
+      // Don't close game-world panels (like UnitDetail) on canvas clicks —
+      // the game's own click handler manages those
+      const isCanvasClick = e.target.tagName === 'CANVAS';
+
       this._collectPanels();
       const openPanels = this.panels.filter(p => p.el && p.el.style.display !== 'none');
       for (const panel of openPanels) {
-        // Check if click is inside the panel or its trigger button
         if (panel.el.contains(e.target)) continue;
         if (panel.trigger && panel.trigger.contains(e.target)) continue;
-        // Click is outside — close this panel
+        // Canvas clicks only close non-game panels
+        if (isCanvasClick && panel.id === 'unitDetail') continue;
         panel.close();
       }
     });
@@ -71,6 +78,7 @@ export class UIManager {
       { id: 'logPanel', el: this.activityLog.panel, trigger: this.activityLog.btn, close: () => { this.activityLog.panel.style.display = 'none'; } },
       { id: 'infoPanel', el: this.toolbar.infoPanel, trigger: null, close: () => { this.toolbar.infoPanel.style.display = 'none'; } },
       { id: 'submenu', el: this.toolbar.openCategoryId ? this.toolbar.categoryBtns[this.toolbar.openCategoryId]?.submenu : null, trigger: this.toolbar.el, close: () => { this.toolbar.closeSubmenu(); } },
+      ...this.externalPanels,
     ];
   }
 

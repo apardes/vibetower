@@ -100,4 +100,14 @@ export class Renderer {
     ndc.unproject(this.camera);
     return { x: ndc.x, y: ndc.y };
   }
+
+  // Convert world coordinates to screen coordinates
+  worldToScreen(worldX, worldY) {
+    const v = new THREE.Vector3(worldX, worldY, 0);
+    v.project(this.camera);
+    return {
+      x: (v.x + 1) / 2 * window.innerWidth,
+      y: -(v.y - 1) / 2 * window.innerHeight,
+    };
+  }
 }
