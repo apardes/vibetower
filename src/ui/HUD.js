@@ -19,7 +19,7 @@ export class HUD {
       top: 0;
       left: 0;
       right: 0;
-      height: 48px;
+      height: 52px;
       background: linear-gradient(180deg, rgba(18, 18, 28, 0.95) 0%, rgba(12, 12, 22, 0.95) 100%);
       display: flex;
       align-items: center;
@@ -29,7 +29,7 @@ export class HUD {
       z-index: 100;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       color: #e0e0e8;
-      font-size: 13px;
+      font-size: 14px;
       letter-spacing: 0.01em;
       user-select: none;
     `;
@@ -50,13 +50,13 @@ export class HUD {
     const indicatorStyle = `
       color: #a0a0b0;
       font-weight: 500;
-      font-size: 13px;
+      font-size: 15px;
       padding: 4px 10px;
       border-radius: 6px;
       transition: all 0.15s;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
     `;
     const btnIndicatorStyle = indicatorStyle + 'cursor: pointer;';
 
@@ -65,7 +65,7 @@ export class HUD {
     this.moneyEl.style.cssText = `
       color: #5cdb5c;
       font-weight: 700;
-      font-size: 15px;
+      font-size: 17px;
       letter-spacing: 0.02em;
     `;
     this.updateMoney();
@@ -119,10 +119,10 @@ export class HUD {
     this.timeEl = document.createElement('span');
     this.timeEl.style.cssText = `
       color: #a0a0b0;
-      min-width: 130px;
+      min-width: 140px;
       text-align: right;
       font-weight: 500;
-      font-size: 13px;
+      font-size: 14px;
       font-variant-numeric: tabular-nums;
     `;
     this.updateTime();
@@ -154,7 +154,7 @@ export class HUD {
         background: ${speed === 1 ? 'rgba(80, 120, 220, 0.3)' : 'transparent'};
         color: ${speed === 1 ? '#8ab4ff' : '#666'};
         cursor: pointer;
-        font-size: 12px;
+        font-size: 13px;
         font-family: 'Inter', sans-serif;
         font-weight: 600;
         transition: all 0.15s;
@@ -325,7 +325,7 @@ export class HUD {
       star.style.cssText = `
         color: ${active ? '#f0c040' : '#333'};
         text-shadow: ${active ? '0 0 8px rgba(240, 192, 64, 0.3)' : 'none'};
-        font-size: 18px;
+        font-size: 20px;
         cursor: default;
       `;
       star.textContent = '\u2605';
@@ -376,7 +376,7 @@ export class HUD {
     for (const [, room] of tower.rooms) {
       if (room.capacity > 0) totalCapacity += room.capacity;
     }
-    this.popEl.innerHTML = `\u{1F465} <span style="font-variant-numeric:tabular-nums;">${people.size}/${totalCapacity}</span>`;
+    this.popEl.innerHTML = `<span style="font-size:18px;">\u{1F465}</span> <span style="font-variant-numeric:tabular-nums;">${people.size}/${totalCapacity}</span>`;
   }
 
   updateOccIndicator() {
@@ -388,7 +388,7 @@ export class HUD {
       total++;
       if (room.tenants.length > 0) occupied++;
     }
-    this.occEl.innerHTML = `\u{1F3E2} <span style="font-variant-numeric:tabular-nums;">${occupied}/${total}</span>`;
+    this.occEl.innerHTML = `<span style="font-size:18px;">\u{1F3E2}</span> <span style="font-variant-numeric:tabular-nums;">${occupied}/${total}</span>`;
   }
 
   updateSatisfactionIndicator() {

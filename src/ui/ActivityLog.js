@@ -53,7 +53,7 @@ export class ActivityLog {
       background: transparent;
       color: #888;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 14px;
       font-family: 'Inter', sans-serif;
       font-weight: 500;
       padding: 4px 10px;

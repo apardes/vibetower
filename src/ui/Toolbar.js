@@ -39,7 +39,7 @@ export class Toolbar {
       bottom: 0;
       left: 0;
       right: 0;
-      height: 52px;
+      height: 56px;
       background: linear-gradient(0deg, rgba(12, 12, 22, 0.95) 0%, rgba(18, 18, 28, 0.95) 100%);
       display: flex;
       align-items: center;
@@ -80,13 +80,13 @@ export class Toolbar {
         background: transparent;
         color: #a0a0b0;
         cursor: pointer;
-        font-size: 13px;
+        font-size: 14px;
         font-family: 'Inter', sans-serif;
         font-weight: 500;
         transition: all 0.15s;
         white-space: nowrap;
       `;
-      btn.innerHTML = `<span style="font-size:16px;">${cat.emoji}</span> ${cat.label}`;
+      btn.innerHTML = `<span style="font-size:19px;">${cat.emoji}</span> ${cat.label}`;
 
       btn.addEventListener('mouseenter', () => {
         if (this.openCategoryId !== cat.id) {
@@ -141,7 +141,7 @@ export class Toolbar {
       font-weight: 500;
       transition: all 0.15s;
     `;
-    bulldozeBtn.innerHTML = '<span style="font-size:16px;">\u{1F6A7}</span> Demolish';
+    bulldozeBtn.innerHTML = '<span style="font-size:19px;">\u{1F6A7}</span> Demolish';
     bulldozeBtn.addEventListener('mouseenter', () => {
       if (this.gameState.selectedTool !== 'bulldoze') {
         bulldozeBtn.style.background = 'rgba(170,80,80,0.15)';
@@ -185,7 +185,7 @@ export class Toolbar {
       margin-left: 6px;
       transition: all 0.15s;
     `;
-    infoBtn.innerHTML = '<span style="font-size:15px;">\u{1F4D6}</span>';
+    infoBtn.innerHTML = '<span style="font-size:18px;">\u{1F4D6}</span>';
     infoBtn.title = 'Reference';
     infoBtn.addEventListener('mouseenter', () => {
       infoBtn.style.background = 'rgba(255,255,255,0.1)';
@@ -252,7 +252,7 @@ export class Toolbar {
         background: transparent;
         color: #c0c0c8;
         cursor: pointer;
-        font-size: 13px;
+        font-size: 14px;
         font-family: 'Inter', sans-serif;
         font-weight: 500;
         transition: all 0.12s;
