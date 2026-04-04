@@ -142,19 +142,30 @@ export class TowerRenderer {
       }
     }
 
-    // Scan for building bounds per floor
-    const floorBounds = new Map();
+    // Scan for contiguous room segments per floor
+    const floorSegments = new Map();
     for (const [, mesh] of this.roomMeshes) {
       const x = mesh.position.x;
       const y = Math.round(mesh.position.y - 0.5);
       const halfW = mesh.geometry.parameters.width / 2;
-      const left = x - halfW;
-      const right = x + halfW;
-      const current = floorBounds.get(y) || { minX: Infinity, maxX: -Infinity };
-      current.minX = Math.min(current.minX, left);
-      current.maxX = Math.max(current.maxX, right);
-      floorBounds.set(y, current);
+      if (!floorSegments.has(y)) floorSegments.set(y, []);
+      floorSegments.get(y).push({ minX: x - halfW, maxX: x + halfW });
     }
+    // Merge overlapping/adjacent segments per floor
+    for (const [floor, segs] of floorSegments) {
+      segs.sort((a, b) => a.minX - b.minX);
+      const merged = [{ ...segs[0] }];
+      for (let i = 1; i < segs.length; i++) {
+        const prev = merged[merged.length - 1];
+        if (segs[i].minX <= prev.maxX + 0.1) {
+          prev.maxX = Math.max(prev.maxX, segs[i].maxX);
+        } else {
+          merged.push({ ...segs[i] });
+        }
+      }
+      floorSegments.set(floor, merged);
+    }
+    const floorBounds = floorSegments;
 
     if (floorBounds.size === 0) return;
 
@@ -162,47 +173,42 @@ export class TowerRenderer {
     const wallMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.85, metalness: 0 });
     const roofMat = new THREE.MeshStandardMaterial({ color: '#4a4240', roughness: 0.8, metalness: 0.05 });
 
-    // Solid wall strips on building edges
-    for (const [floor, bounds] of floorBounds) {
-      const wallW = 0.08;
-      // Left wall
-      const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(wallW, 1), wallMat);
-      leftWall.position.set(bounds.minX - wallW / 2, floor + 0.5, 0.015);
-      this.exteriorGroup.add(leftWall);
+    // Walls and floor lines per contiguous segment
+    const wallW = 0.08;
+    for (const [floor, segments] of floorBounds) {
+      for (const seg of segments) {
+        const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(wallW, 1), wallMat);
+        leftWall.position.set(seg.minX - wallW / 2, floor + 0.5, 0.015);
+        this.exteriorGroup.add(leftWall);
 
-      // Right wall
-      const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(wallW, 1), wallMat);
-      rightWall.position.set(bounds.maxX + wallW / 2, floor + 0.5, 0.015);
-      this.exteriorGroup.add(rightWall);
+        const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(wallW, 1), wallMat);
+        rightWall.position.set(seg.maxX + wallW / 2, floor + 0.5, 0.015);
+        this.exteriorGroup.add(rightWall);
 
-      // Floor line separator
-      const floorLine = new THREE.Mesh(
-        new THREE.PlaneGeometry(bounds.maxX - bounds.minX + wallW * 2, 0.03),
-        wallMat
-      );
-      floorLine.position.set((bounds.minX + bounds.maxX) / 2, floor, 0.015);
-      this.exteriorGroup.add(floorLine);
-    }
-
-    // Roofline — solid bar at top of the building
-    let maxFloor = -1;
-    let roofBounds = null;
-    for (const [floor, bounds] of floorBounds) {
-      if (floor > maxFloor) {
-        maxFloor = floor;
-        roofBounds = bounds;
+        const floorLine = new THREE.Mesh(
+          new THREE.PlaneGeometry(seg.maxX - seg.minX + wallW * 2, 0.03),
+          wallMat
+        );
+        floorLine.position.set((seg.minX + seg.maxX) / 2, floor, 0.015);
+        this.exteriorGroup.add(floorLine);
       }
     }
-    if (roofBounds) {
-      const roofW = roofBounds.maxX - roofBounds.minX + 0.2;
-      const roof = new THREE.Mesh(new THREE.PlaneGeometry(roofW, 0.12), roofMat);
-      roof.position.set((roofBounds.minX + roofBounds.maxX) / 2, maxFloor + 1.05, 0.015);
-      this.exteriorGroup.add(roof);
 
-      // Roof cap / parapet
-      const parapet = new THREE.Mesh(new THREE.PlaneGeometry(roofW + 0.1, 0.06), roofMat);
-      parapet.position.set((roofBounds.minX + roofBounds.maxX) / 2, maxFloor + 1.12, 0.016);
-      this.exteriorGroup.add(parapet);
+    // Rooflines — on top of each segment that has no segment directly above it
+    for (const [floor, segments] of floorBounds) {
+      const above = floorBounds.get(floor + 1);
+      for (const seg of segments) {
+        const covered = above && above.some(s => s.minX <= seg.minX + 0.1 && s.maxX >= seg.maxX - 0.1);
+        if (!covered) {
+          const roofW = seg.maxX - seg.minX + 0.2;
+          const roof = new THREE.Mesh(new THREE.PlaneGeometry(roofW, 0.12), roofMat);
+          roof.position.set((seg.minX + seg.maxX) / 2, floor + 1.05, 0.015);
+          this.exteriorGroup.add(roof);
+          const parapet = new THREE.Mesh(new THREE.PlaneGeometry(roofW + 0.1, 0.06), roofMat);
+          parapet.position.set((seg.minX + seg.maxX) / 2, floor + 1.12, 0.016);
+          this.exteriorGroup.add(parapet);
+        }
+      }
     }
   }
 
