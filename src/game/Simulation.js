@@ -1,4 +1,15 @@
 import { BASE_TICK_HOURS, TICKS_PER_SECOND, TOWER_MAX_WIDTH } from '../constants.js';
+
+// Get spawn/exit x positions relative to the building
+function getBuildingEdges(tower) {
+  let minX = Infinity, maxX = -Infinity;
+  for (const [, room] of tower.rooms) {
+    minX = Math.min(minX, room.gridX);
+    maxX = Math.max(maxX, room.gridX + room.width);
+  }
+  if (minX === Infinity) { minX = 498; maxX = 502; }
+  return { left: minX - 15, right: maxX + 15 };
+}
 import { Economy } from './Economy.js';
 import { Person } from './Person.js';
 import { StarRating } from './StarRating.js';
@@ -158,7 +169,8 @@ export class Simulation {
     if (fromRoom.gridY === 0) {
       // Walk off screen
       person.state = 'walking';
-      person.targetX = Math.random() > 0.5 ? -2 : TOWER_MAX_WIDTH + 2;
+      const _edges = getBuildingEdges(this.gameState.tower);
+      person.targetX = Math.random() > 0.5 ? _edges.left - 2 : _edges.right + 2;
       person.targetFloor = -1;
     } else {
       // Take elevator down
@@ -209,7 +221,8 @@ export class Simulation {
     }
 
     // Walked off the map (leaving for the day) — mark as away
-    if (person.isOut && (person.position.x < -1 || person.position.x > TOWER_MAX_WIDTH + 1)) {
+    const _bEdges = getBuildingEdges(this.gameState.tower);
+    if (person.isOut && (person.position.x < _bEdges.left - 1 || person.position.x > _bEdges.right + 1)) {
       person.state = 'in_room';
       person.floor = 0;
       person.hidden = true;
@@ -329,7 +342,8 @@ export class Simulation {
             person.targetX = homeRoom.gridX + person.homeOffset * homeRoom.width;
           } else if (stoppedFloor === 0 && person.isOut) {
             // Going outside
-            person.targetX = Math.random() > 0.5 ? -2 : TOWER_MAX_WIDTH + 2;
+            const _edges = getBuildingEdges(this.gameState.tower);
+      person.targetX = Math.random() > 0.5 ? _edges.left - 2 : _edges.right + 2;
           } else {
             person.targetX = person.position.x + (Math.random() > 0.5 ? 3 : -3);
           }
@@ -407,7 +421,8 @@ export class Simulation {
   spawnPerson(room) {
     const { people } = this.gameState;
     const person = new Person(room.id, room.type);
-    person.position.x = Math.random() > 0.5 ? 0 : TOWER_MAX_WIDTH;
+    const edges = getBuildingEdges(this.gameState.tower);
+    person.position.x = Math.random() > 0.5 ? edges.left : edges.right;
     person.position.y = 0.5;
     person.floor = 0;
     person.state = 'spawning';
@@ -447,7 +462,8 @@ export class Simulation {
         person.hasReturnedToday = true;
         person.isOut = false;
         person.hidden = false;
-        person.position.x = Math.random() > 0.5 ? 0 : TOWER_MAX_WIDTH;
+        const edges = getBuildingEdges(this.gameState.tower);
+        person.position.x = Math.random() > 0.5 ? edges.left : edges.right;
         person.position.y = 0.5;
         person.floor = 0;
         person.state = 'spawning';
