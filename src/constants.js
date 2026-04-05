@@ -142,8 +142,8 @@ export const STAR_THRESHOLDS = [
 // issues: pool of possible problems, each with name, description, costMin, costMax
 export const MAINTENANCE = {
   lobby: {
-    interval: 14,
-    variance: 4,
+    interval: 18,
+    variance: 5,
     issues: [
       { name: 'Light replacement', desc: 'Several lobby light fixtures have burned out', costMin: 50, costMax: 150, weight: 30, severity: 1 },
       { name: 'Floor polishing', desc: 'Lobby floors scuffed from heavy foot traffic', costMin: 200, costMax: 500, weight: 25, severity: 1 },
@@ -156,8 +156,8 @@ export const MAINTENANCE = {
     ],
   },
   apartment: {
-    interval: 10,
-    variance: 3,
+    interval: 12,
+    variance: 4,
     issues: [
       { name: 'Clogged drain', desc: 'Sink or shower drain is blocked', costMin: 50, costMax: 150, weight: 25, severity: 1 },
       { name: 'Leaky faucet', desc: 'Dripping faucet in kitchen or bathroom', costMin: 75, costMax: 200, weight: 25, severity: 1 },
@@ -171,8 +171,8 @@ export const MAINTENANCE = {
     ],
   },
   office: {
-    interval: 12,
-    variance: 4,
+    interval: 15,
+    variance: 5,
     issues: [
       { name: 'Light ballast', desc: 'Fluorescent light ballast buzzing and flickering', costMin: 50, costMax: 150, weight: 25, severity: 1 },
       { name: 'Carpet cleaning', desc: 'Office carpets stained from daily use', costMin: 150, costMax: 400, weight: 20, severity: 1 },
@@ -185,7 +185,7 @@ export const MAINTENANCE = {
     ],
   },
   retail: {
-    interval: 8,
+    interval: 10,
     variance: 3,
     issues: [
       { name: 'Signage repair', desc: 'Store signage bulb or panel needs fixing', costMin: 50, costMax: 200, weight: 20, severity: 1 },
@@ -199,8 +199,8 @@ export const MAINTENANCE = {
     ],
   },
   restaurant: {
-    interval: 6,
-    variance: 2,
+    interval: 8,
+    variance: 3,
     issues: [
       { name: 'Grease trap cleaning', desc: 'Grease trap full from heavy cooking volume', costMin: 150, costMax: 400, weight: 25, severity: 2 },
       { name: 'Pest control', desc: 'Kitchen food waste attracts pests, treatment needed', costMin: 200, costMax: 500, weight: 20, severity: 2 },
@@ -214,8 +214,8 @@ export const MAINTENANCE = {
     ],
   },
   elevator: {
-    interval: 5,
-    variance: 2,
+    interval: 7,
+    variance: 3,
     issues: [
       { name: 'Light bulb', desc: 'Cab interior light burned out', costMin: 25, costMax: 75, weight: 25, severity: 1 },
       { name: 'Button replacement', desc: 'Floor button worn out from passenger use', costMin: 50, costMax: 200, weight: 20, severity: 1 },

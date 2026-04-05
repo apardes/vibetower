@@ -56,6 +56,7 @@ export class Simulation {
     if (this.tickCount % 10 === 0) {
       this.updateSatisfaction();
       this.updateStats();
+      this.checkMaintenance();
     }
 
     eventBus.emit('tick', this.gameState);
@@ -383,7 +384,6 @@ export class Simulation {
   onNewDay() {
     this.economy.collectRent();
     this.starRating.evaluate();
-    this.checkMaintenance();
 
     // Record daily satisfaction snapshot
     const hist = this.gameState.satisfactionHistory;
@@ -403,18 +403,21 @@ export class Simulation {
     const day = time.day;
 
     for (const [, room] of tower.rooms) {
-      if (room.maintenanceIssue) continue; // already has an unresolved issue
+      if (room.maintenanceIssue) continue;
+      if (day < room.nextMaintenanceDay) continue;
 
-      // Occupied units need maintenance sooner — reduce effective interval
-      // Vacant units still need maintenance but less frequently
-      let effectiveDay = room.nextMaintenanceDay;
+      // Per-tick chance: spread issue arrival across the day
+      // Base chance per check (~2 checks/sec) over a day (~1200 checks at 1x)
+      // gives roughly one trigger per interval period
+      let chance = 0.002;
+
+      // Occupied units break down faster
       if (room.occupied) {
-        // Occupancy accelerates wear: full occupancy = 30% sooner
         const occRate = room.capacity > 0 ? room.tenants.length / room.capacity : 0.5;
-        effectiveDay -= Math.floor(occRate * 0.3 * (room.nextMaintenanceDay - day + 5));
+        chance *= (1 + occRate * 0.5);
       }
 
-      if (day < effectiveDay) continue;
+      if (Math.random() > chance) continue;
 
       const issue = room.generateIssue();
       if (!issue) continue;
