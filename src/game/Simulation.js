@@ -692,13 +692,18 @@ export class Simulation {
         // Clamp target satisfaction
         const targetSat = Math.max(0, Math.min(100, sat));
 
-        // Satisfaction drops fast but recovers slowly
+        // Satisfaction drops fast but recovers at a rate based on current happiness.
+        // Happy tenants gain satisfaction faster. Unhappy tenants recover very slowly.
         if (targetSat < person.satisfaction) {
           // Dropping — immediate
           person.satisfaction = targetSat;
         } else {
-          // Recovering — very gradual (recover ~0.3 points per update cycle)
-          person.satisfaction = Math.min(targetSat, person.satisfaction + 0.3);
+          // Recovery rate scales with current satisfaction:
+          // At 0 satisfaction: 0.1 per cycle (very slow — deeply unhappy, hard to win back)
+          // At 50 satisfaction: 0.5 per cycle (moderate)
+          // At 70+ satisfaction: 1.0+ per cycle (happy tenants warm up quickly)
+          const recoveryRate = 0.05 + (person.satisfaction / 100) * 0.45;
+          person.satisfaction = Math.min(targetSat, person.satisfaction + recoveryRate);
         }
 
         totalSat += person.satisfaction;
