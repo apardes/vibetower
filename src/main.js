@@ -24,6 +24,7 @@ const renderer = new Renderer(canvas);
 const sky = new SkyRenderer(renderer.scene);
 const towerRenderer = new TowerRenderer(renderer.scene);
 const gridOverlay = new GridOverlay(renderer.scene);
+gridOverlay.renderer = renderer;
 const elevatorRenderer = new ElevatorRenderer(renderer.scene);
 const personRenderer = new PersonRenderer(renderer.scene);
 personRenderer.elevatorRenderer = elevatorRenderer;

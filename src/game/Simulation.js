@@ -1,4 +1,4 @@
-import { BASE_TICK_HOURS, TICKS_PER_SECOND, TOWER_MAX_WIDTH, DEMAND_CONFIG, SATISFACTION_FACTORS, ROOM_TYPES, MOVEOUT_CONFIG } from '../constants.js';
+import { BASE_TICK_HOURS, TICKS_PER_SECOND, TOWER_MAX_WIDTH, DEMAND_CONFIG, SATISFACTION_FACTORS, ROOM_TYPES, MOVEOUT_CONFIG, ELEVATOR_TIME_SCALE } from '../constants.js';
 
 // Get spawn/exit x positions relative to the building
 function getBuildingEdges(tower) {
@@ -92,7 +92,10 @@ export class Simulation {
           break;
 
         case 'waiting_elevator':
-          // Idle sway while waiting
+          // Periodically check if another elevator has a shorter queue
+          if (Math.random() < 0.02) { // ~once per 2.5 seconds real time
+            this.reconsiderElevator(person);
+          }
           break;
 
         case 'in_elevator':
@@ -279,20 +282,29 @@ export class Simulation {
 
   findNearestElevator(fromX, fromFloor, targetFloor, destX) {
     let best = null;
-    let bestDist = Infinity;
+    let bestScore = Infinity;
     const tower = this.gameState.tower;
+    const { people } = this.gameState;
 
     for (const [, elevator] of tower.elevators) {
       if (fromFloor >= elevator.minFloor && fromFloor <= elevator.maxFloor &&
           targetFloor >= elevator.minFloor && targetFloor <= elevator.maxFloor) {
         const elevX = elevator.gridX + 0.5;
-        // Must have a walkable path from person to elevator on current floor
         if (!tower.hasFloorPath(fromFloor, fromX, elevX)) continue;
-        // Must have a walkable path from elevator to destination on target floor
         if (destX !== undefined && !tower.hasFloorPath(targetFloor, elevX, destX)) continue;
+
+        // Count people waiting for this elevator
+        let waitingCount = 0;
+        for (const [, p] of people) {
+          if (p.state === 'waiting_elevator' && p.elevatorId === elevator.id) waitingCount++;
+        }
+
+        // Score: distance + queue penalty (each waiting person = 2 units of distance)
         const dist = Math.abs(elevX - fromX);
-        if (dist < bestDist) {
-          bestDist = dist;
+        const score = dist + waitingCount * 2;
+
+        if (score < bestScore) {
+          bestScore = score;
           best = elevator;
         }
       }
@@ -342,7 +354,9 @@ export class Simulation {
       // Handle loading/unloading ONLY when fully stopped at a floor
       if (stoppedFloor < 0) continue;
 
+
       // Unload: passengers whose targetFloor is this floor
+      let boardingCount = 0;
       const toRemove = [];
       for (const personId of elevator.passengers) {
         const person = people.get(personId);
@@ -372,6 +386,7 @@ export class Simulation {
           toRemove.push(personId);
         }
       }
+      boardingCount += toRemove.length;
       for (const id of toRemove) {
         elevator.passengers.delete(id);
       }
@@ -384,22 +399,30 @@ export class Simulation {
             elevator.passengers.size < elevator.capacity) {
           elevator.passengers.add(person.id);
           person.state = 'in_elevator';
-          // Record how long they waited
+          // Record how long they waited — scaled by time compression and game speed
           const now = this.gameState.time.hour + (this.gameState.time.day - 1) * 24;
-          person.lastWaitTime = Math.max(0, now - person.elevatorWaitStart);
+          const rawWait = Math.max(0, now - person.elevatorWaitStart);
+          const speed = this.gameState.time.speed || 1;
+          person.lastWaitTime = rawWait * ELEVATOR_TIME_SCALE / speed;
           elevator.recordWaitTime(person.lastWaitTime);
 
-          // Alert if average wait time is high
-          if (elevator.avgWaitTime > 0.3 && !elevator.longWaitAlerted) {
+          // Alert if average wait time is high (in scaled minutes)
+          if (elevator.avgWaitTime * 60 > 8 && !elevator.longWaitAlerted) {
             elevator.longWaitAlerted = true;
             eventBus.emit('elevatorLongWait', { elevator });
-          } else if (elevator.avgWaitTime <= 0.2) {
+          } else if (elevator.avgWaitTime * 60 <= 5) {
             elevator.longWaitAlerted = false; // reset when wait times improve
           }
 
           // NOW request their destination floor
           elevator.requestFloor(person.targetFloor);
+          boardingCount++;
         }
+      }
+
+      // Set stop duration based on how many people boarded/exited
+      if (boardingCount > 0) {
+        elevator.stopTimer = elevator.getStopDuration(boardingCount);
       }
     }
   }
@@ -492,6 +515,33 @@ export class Simulation {
       if (Math.random() < moveOutChance) {
         this.permanentMoveOut(person, room);
       }
+    }
+  }
+
+  reconsiderElevator(person) {
+    if (!person.elevatorId || person.targetFloor < 0) return;
+    const currentElev = this.gameState.tower.elevators.get(person.elevatorId);
+    if (!currentElev) return;
+
+    // Count people waiting for current elevator
+    let currentQueue = 0;
+    for (const [, p] of this.gameState.people) {
+      if (p.state === 'waiting_elevator' && p.elevatorId === currentElev.id) currentQueue++;
+    }
+
+    // Only reconsider if queue is long enough to bother
+    if (currentQueue < 3) return;
+
+    // Find a better elevator
+    const homeRoom = this.gameState.tower.rooms.get(person.homeRoom);
+    const destX = homeRoom ? homeRoom.gridX + homeRoom.width / 2 : undefined;
+    const better = this.findNearestElevator(person.position.x, person.floor, person.targetFloor, destX);
+
+    if (better && better.id !== currentElev.id) {
+      // Switch — walk to the new elevator
+      person.elevatorId = better.id;
+      person.targetX = better.gridX + 0.5;
+      person.state = 'walking';
     }
   }
 
@@ -681,14 +731,20 @@ export class Simulation {
         const floorBonus = person.preferences.floorPreference * (room.gridY / 10) * SATISFACTION_FACTORS.floorBonus.maxBonus;
         sat += floorBonus;
 
+        // No elevator access — trapped on upper floor, very unhappy
+        if (room.gridY > 0 && !this.hasElevatorAccess(room.gridY)) {
+          sat -= 30;
+        }
+
         // Elevator wait time frustration — scales exponentially with tenant rating
-        // 1-star: no impact. 2-star: slight. 5-star: very sensitive.
-        if (person.tenantRating > 1 && person.lastWaitTime > SATISFACTION_FACTORS.elevatorWait.graceHours) {
-          const excess = person.lastWaitTime - SATISFACTION_FACTORS.elevatorWait.graceHours;
-          const ratingScale = Math.pow(person.tenantRating - 1, 1.5) / Math.pow(4, 1.5); // 0 at 1-star, 1.0 at 5-star
+        // lastWaitTime is already scaled to realistic minutes (via ELEVATOR_TIME_SCALE)
+        const waitMinutes = person.lastWaitTime * 60;
+        if (person.tenantRating > 1 && waitMinutes > SATISFACTION_FACTORS.elevatorWait.graceMinutes) {
+          const excessMin = waitMinutes - SATISFACTION_FACTORS.elevatorWait.graceMinutes;
+          const ratingScale = Math.pow(person.tenantRating - 1, 1.5) / Math.pow(4, 1.5);
           const waitPenalty = Math.min(
             SATISFACTION_FACTORS.elevatorWait.maxPenalty * ratingScale,
-            excess * SATISFACTION_FACTORS.elevatorWait.penaltyPerHour * ratingScale
+            excessMin * SATISFACTION_FACTORS.elevatorWait.penaltyPerMinute * ratingScale
           );
           sat -= waitPenalty;
         }

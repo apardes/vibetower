@@ -318,11 +318,11 @@ export class UnitDetail {
       elev.state === 'stopped' ? `Stopped \u2014 Floor ${elev.currentFloor}` : elev.state;
 
     // Wait time indicator
-    const avgMin = elev.recentWaitTimes.length > 0 ? Math.round(elev.avgWaitTime * 60) : 0;
+    const avgMin = elev.recentWaitTimes.length > 0 ? parseFloat((elev.avgWaitTime * 60).toFixed(1)) : 0;
     let waitColor, waitLabel;
-    if (avgMin <= 5) { waitColor = '#5cdb5c'; waitLabel = 'Good'; }
-    else if (avgMin <= 12) { waitColor = '#c4a44a'; waitLabel = 'Moderate'; }
-    else if (avgMin <= 20) { waitColor = '#e08040'; waitLabel = 'Long'; }
+    if (avgMin <= 3) { waitColor = '#5cdb5c'; waitLabel = 'Good'; }
+    else if (avgMin <= 6) { waitColor = '#c4a44a'; waitLabel = 'Moderate'; }
+    else if (avgMin <= 10) { waitColor = '#e08040'; waitLabel = 'Long'; }
     else { waitColor = '#cc4444'; waitLabel = 'Critical'; }
 
     // Passenger details
@@ -370,7 +370,7 @@ export class UnitDetail {
           </div>
           <div>
             <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:2px;">Avg Wait</div>
-            <div style="color:${waitColor}; font-weight:600;">${avgMin > 0 ? avgMin + ' min' : '\u2014'} <span style="font-weight:400; font-size:11px;">${avgMin > 0 ? waitLabel : ''}</span></div>
+            <div style="color:${waitColor}; font-weight:600;">${elev.recentWaitTimes.length === 0 ? '\u2014' : avgMin < 1 ? '< 1 min' : Math.round(avgMin) + ' min'} <span style="font-weight:400; font-size:11px;">${elev.recentWaitTimes.length > 0 ? waitLabel : ''}</span></div>
           </div>
         </div>
 

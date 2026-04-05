@@ -35,7 +35,8 @@ export const SATISFACTION_FACTORS = {
   floorBonus: { maxBonus: 10 },
   elevatorAccess: { penalty: -25, threshold: 2 },
   noisePenalty: { retail: -8, restaurant: -5 },
-  elevatorWait: { graceHours: 0.2, penaltyPerHour: 15, maxPenalty: 20 },
+  // Wait times are scaled by ELEVATOR_TIME_SCALE before evaluation
+  elevatorWait: { graceMinutes: 3, penaltyPerMinute: 3, maxPenalty: 20 },
 };
 
 // Move-out / Vacancy
@@ -52,6 +53,9 @@ export const MOVEOUT_CONFIG = {
     restaurant: 0.7,
   },
 };
+
+// Elevator time compression — converts raw game-time waits to realistic perceived waits
+export const ELEVATOR_TIME_SCALE = 0.075;
 
 // Time
 export const TICKS_PER_SECOND = 20;
@@ -135,7 +139,7 @@ export const ROOM_TYPES = {
     costPerFloor: 10000,
     cost: 10000,
     income: -200,
-    capacity: 8,
+    capacity: 12,
     color: '#888888',
     unlockStar: 1,
     maintenanceImpact: { target: 'elevator', selection: null, reach: 1.0, intensity: 1.0 },

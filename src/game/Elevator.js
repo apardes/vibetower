@@ -14,15 +14,21 @@ export class Elevator {
     this.stopTimer = 0;           // time remaining at a stop
     this.passengers = new Set();
     this.requestedFloors = new Set();
-    this.capacity = 8;
+    this.capacity = 12;
 
-    this.moveTime = 0.08;  // game-hours to travel one floor
-    this.stopTime = 0.15;  // game-hours to stay stopped
+    this.moveTime = 0.02;    // game-hours to travel one floor (~1.2 min)
+    this.baseStopTime = 0.08; // base stop time — must survive at least 1 tick at 3x speed (0.06)
+    this.perPersonStop = 0.005; // additional time per person boarding/exiting
 
     // Wait time tracking
     this.recentWaitTimes = []; // last N wait times in game-hours
     this.avgWaitTime = 0;     // rolling average
     this.longWaitAlerted = false; // prevent toast spam
+  }
+
+  // Calculate stop duration based on number of people boarding/exiting
+  getStopDuration(boardingCount) {
+    return this.baseStopTime + boardingCount * this.perPersonStop;
   }
 
   recordWaitTime(hours) {
@@ -52,27 +58,23 @@ export class Elevator {
 
     if (this.state === 'idle') return;
 
-    // Moving — count down until we arrive at the next floor
+    // Moving
     this.moveTimer -= tickHours;
     if (this.moveTimer <= 0) {
-      // Arrived at the next floor
       this.currentFloor += this.direction;
 
-      // Check if this floor is requested — if so, stop here
       if (this.requestedFloors.has(this.currentFloor)) {
         this.state = 'stopped';
-        this.stopTimer = this.stopTime;
+        this.stopTimer = this.getStopDuration(0);
         return;
       }
 
-      // Check if we've reached the target floor
       if (this.currentFloor === this.targetFloor) {
         this.state = 'stopped';
-        this.stopTimer = this.stopTime;
+        this.stopTimer = this.getStopDuration(0);
         return;
       }
 
-      // Keep moving — reset timer for next floor
       this.moveTimer = this.moveTime;
     }
   }
@@ -89,7 +91,7 @@ export class Elevator {
     // If we're already at a requested floor, stop here
     if (this.requestedFloors.has(current)) {
       this.state = 'stopped';
-      this.stopTimer = this.stopTime;
+      this.stopTimer = this.getStopDuration(0);
       this.targetFloor = current;
       return;
     }

@@ -10,6 +10,26 @@ export class GridOverlay {
 
     this.buildGridLines();
     this.buildPreviewMesh();
+
+    // Floor count label for elevator drag preview
+    this.floorLabel = document.createElement('div');
+    this.floorLabel.style.cssText = `
+      position: fixed;
+      background: rgba(14, 14, 24, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 3px 8px;
+      color: #e0e0e8;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      pointer-events: none;
+      z-index: 150;
+      display: none;
+      white-space: nowrap;
+    `;
+    document.body.appendChild(this.floorLabel);
+    this.renderer = null; // set by main.js
   }
 
   buildGridLines() {
@@ -56,9 +76,10 @@ export class GridOverlay {
   hide() {
     this.group.visible = false;
     this.previewMesh.visible = false;
+    this.floorLabel.style.display = 'none';
   }
 
-  showPreview(gridX, gridY, width, height, valid) {
+  showPreview(gridX, gridY, width, height, valid, floorCount) {
     this.previewMesh.visible = true;
     this.previewMesh.scale.set(width - 0.05, height - 0.05, 1);
     this.previewMesh.position.set(
@@ -67,9 +88,22 @@ export class GridOverlay {
       0.5
     );
     this.previewMat.color.set(valid ? '#00ff00' : '#ff0000');
+
+    // Floor count label
+    if (floorCount && floorCount > 1 && this.renderer) {
+      const screen = this.renderer.worldToScreen(gridX + width / 2, gridY + height);
+      this.floorLabel.textContent = `${floorCount} floors`;
+      this.floorLabel.style.display = 'block';
+      this.floorLabel.style.left = (screen.x + 12) + 'px';
+      this.floorLabel.style.top = (screen.y - 12) + 'px';
+      this.floorLabel.style.color = valid ? '#5cdb5c' : '#cc4444';
+    } else {
+      this.floorLabel.style.display = 'none';
+    }
   }
 
   hidePreview() {
     this.previewMesh.visible = false;
+    this.floorLabel.style.display = 'none';
   }
 }

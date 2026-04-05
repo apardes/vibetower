@@ -51,7 +51,7 @@ export class BuildTool {
       const height = maxY - minY + 1;
       const gridX = this.elevatorDrag.gridX;
       const valid = this.canPlaceElevator(gridX, minY, maxY);
-      this.gridOverlay.showPreview(gridX, minY, 1, height, valid);
+      this.gridOverlay.showPreview(gridX, minY, 1, height, valid, height);
       return;
     }
 
