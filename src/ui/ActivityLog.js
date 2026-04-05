@@ -294,6 +294,16 @@ export class ActivityLog {
       this.updateButtonLabel();
     });
 
+    eventBus.on('elevatorLongWait', ({ elevator }) => {
+      const avgMin = Math.round(elevator.avgWaitTime * 60);
+      this.log('alerts', `\u{23F3} Elevator (F${elevator.minFloor}-F${elevator.maxFloor}): Long wait times \u2014 avg ${avgMin} min`, 'negative');
+    });
+
+    eventBus.on('tenantMovedOut', ({ room, reason }) => {
+      this.log('alerts', `\u{1F4E4} ${room.name} (F${room.gridY}): Tenant moved out \u2014 ${reason}`, 'negative', room);
+      this.log('occupancy', `Tenant left ${room.name} (F${room.gridY}): ${reason}`, 'negative');
+    });
+
     eventBus.on('newDay', (day) => {
       this.log('alerts', `--- Day ${day} ---`, 'info');
     });

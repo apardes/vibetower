@@ -16,6 +16,10 @@ export class Person {
     this.homeRoom = homeRoom;
     this.state = 'spawning';
     this.satisfaction = 70;
+    this.tenantRating = 1;   // set to building star rating at move-in
+    this.movingOut = false;  // flagged when permanently leaving
+    this.elevatorWaitStart = 0; // game hour when waiting began
+    this.lastWaitTime = 0;      // hours spent waiting last time (for satisfaction)
 
     // Personal preferences — affect how this tenant reacts to amenities, noise, etc.
     this.preferences = {

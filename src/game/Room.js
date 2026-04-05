@@ -25,6 +25,9 @@ export class Room {
     this.log = [];
     this.logEvent('built', 'Unit constructed');
 
+    // Vacancy cooldown — days before new tenants can move in after a move-out
+    this.vacancyCooldown = 0;
+
     // Maintenance state
     const mConfig = MAINTENANCE[type];
     this.maintenanceIssue = null; // null or { name, desc, cost, severity }

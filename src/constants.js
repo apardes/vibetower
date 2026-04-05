@@ -35,6 +35,22 @@ export const SATISFACTION_FACTORS = {
   floorBonus: { maxBonus: 10 },
   elevatorAccess: { penalty: -25, threshold: 2 },
   noisePenalty: { retail: -8, restaurant: -5 },
+  elevatorWait: { graceHours: 0.2, penaltyPerHour: 15, maxPenalty: 20 },
+};
+
+// Move-out / Vacancy
+export const MOVEOUT_CONFIG = {
+  baseChance: 0.05,
+  comfortBase: 30,
+  comfortPerStar: 8,
+  dissatisfactionScale: 0.4,
+  vacancyCooldown: 2,
+  typeMultiplier: {
+    apartment: 1.0,
+    office: 0.5,
+    retail: 0.7,
+    restaurant: 0.7,
+  },
 };
 
 // Time

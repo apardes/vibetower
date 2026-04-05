@@ -1,4 +1,4 @@
-import { BASE_TICK_HOURS, TICKS_PER_SECOND, TOWER_MAX_WIDTH, DEMAND_CONFIG, SATISFACTION_FACTORS, ROOM_TYPES } from '../constants.js';
+import { BASE_TICK_HOURS, TICKS_PER_SECOND, TOWER_MAX_WIDTH, DEMAND_CONFIG, SATISFACTION_FACTORS, ROOM_TYPES, MOVEOUT_CONFIG } from '../constants.js';
 
 // Get spawn/exit x positions relative to the building
 function getBuildingEdges(tower) {
@@ -220,15 +220,29 @@ export class Simulation {
       const elevator = this.gameState.tower.elevators.get(person.elevatorId);
       if (elevator) {
         person.state = 'waiting_elevator';
-        // Only request pickup floor — destination is requested when they board
+        person.elevatorWaitStart = this.gameState.time.hour + (this.gameState.time.day - 1) * 24;
         elevator.requestFloor(person.floor);
         return;
       }
     }
 
-    // Walked off the map (leaving for the day) — mark as away
+    // Walked off the map
     const _bEdges = getBuildingEdges(this.gameState.tower);
     if (person.isOut && (person.position.x < _bEdges.left - 1 || person.position.x > _bEdges.right + 1)) {
+      if (person.movingOut) {
+        // Permanent move-out — remove from building
+        const room = this.gameState.tower.rooms.get(person.homeRoom);
+        if (room) {
+          room.tenants = room.tenants.filter(id => id !== person.id);
+          room.vacancyCooldown = MOVEOUT_CONFIG.vacancyCooldown;
+          const reason = person.satisfaction < 40 ? 'Low satisfaction' : 'Personal reasons';
+          room.logEvent('move_out', `Tenant moved out: ${reason}`, { satisfaction: Math.round(person.satisfaction) }, gt(this.gameState));
+          eventBus.emit('tenantMovedOut', { room, person, reason });
+        }
+        this.gameState.people.delete(person.id);
+        return;
+      }
+      // Temporary daily departure
       person.state = 'in_room';
       person.floor = 0;
       person.hidden = true;
@@ -370,6 +384,19 @@ export class Simulation {
             elevator.passengers.size < elevator.capacity) {
           elevator.passengers.add(person.id);
           person.state = 'in_elevator';
+          // Record how long they waited
+          const now = this.gameState.time.hour + (this.gameState.time.day - 1) * 24;
+          person.lastWaitTime = Math.max(0, now - person.elevatorWaitStart);
+          elevator.recordWaitTime(person.lastWaitTime);
+
+          // Alert if average wait time is high
+          if (elevator.avgWaitTime > 0.3 && !elevator.longWaitAlerted) {
+            elevator.longWaitAlerted = true;
+            eventBus.emit('elevatorLongWait', { elevator });
+          } else if (elevator.avgWaitTime <= 0.2) {
+            elevator.longWaitAlerted = false; // reset when wait times improve
+          }
+
           // NOW request their destination floor
           elevator.requestFloor(person.targetFloor);
         }
@@ -384,6 +411,12 @@ export class Simulation {
   onNewDay() {
     this.economy.collectRent();
     this.starRating.evaluate();
+    this.checkMoveOuts();
+
+    // Decrement vacancy cooldowns
+    for (const [, room] of this.gameState.tower.rooms) {
+      if (room.vacancyCooldown > 0) room.vacancyCooldown--;
+    }
 
     // Record daily satisfaction snapshot
     const hist = this.gameState.satisfactionHistory;
@@ -431,6 +464,52 @@ export class Simulation {
     }
   }
 
+  checkMoveOuts() {
+    const { tower, people } = this.gameState;
+    const cfg = MOVEOUT_CONFIG;
+
+    for (const [, person] of people) {
+      if (person.hidden || person.movingOut) continue;
+      if (person.state !== 'in_room') continue;
+
+      const room = tower.rooms.get(person.homeRoom);
+      if (!room) continue;
+
+      const comfortThreshold = cfg.comfortBase + person.tenantRating * cfg.comfortPerStar;
+
+      let moveOutChance = cfg.baseChance;
+
+      if (person.satisfaction < comfortThreshold) {
+        const deficit = comfortThreshold - person.satisfaction;
+        let bonus = (deficit / 100) * cfg.dissatisfactionScale;
+        const ratingMult = 0.5 + person.tenantRating * 0.2;
+        bonus *= ratingMult;
+        const typeMult = cfg.typeMultiplier[room.type] || 1.0;
+        bonus *= typeMult;
+        moveOutChance += bonus;
+      }
+
+      if (Math.random() < moveOutChance) {
+        this.permanentMoveOut(person, room);
+      }
+    }
+  }
+
+  permanentMoveOut(person, room) {
+    person.movingOut = true;
+    person.isOut = true;
+    person.position.y = room.gridY + 0.5;
+
+    if (room.gridY === 0) {
+      person.state = 'walking';
+      const _edges = getBuildingEdges(this.gameState.tower);
+      person.targetX = Math.random() > 0.5 ? _edges.left - 2 : _edges.right + 2;
+      person.targetFloor = -1;
+    } else {
+      this.startElevatorTrip(person, 0, 0);
+    }
+  }
+
   // Called every tick — trickle in new tenants and handle returns
   tickSpawnsAndReturns(hour) {
     this.trySpawnNewTenants(hour);
@@ -472,6 +551,7 @@ export class Simulation {
       if (room.type === 'elevator' || room.type === 'lobby') continue;
       if (room.capacity <= 0) continue;
       if (room.tenants.length > 0) continue;
+      if (room.vacancyCooldown > 0) continue;
 
       // Star-based demand multiplier for this unit type
       const starDemand = cfg.starDemand[room.type];
@@ -499,12 +579,12 @@ export class Simulation {
   spawnPerson(room) {
     const { people } = this.gameState;
     const person = new Person(room.id, room.type);
+    person.tenantRating = this.gameState.starRating;
     const edges = getBuildingEdges(this.gameState.tower);
     person.position.x = Math.random() > 0.5 ? edges.left : edges.right;
     person.position.y = 0.5;
     person.floor = 0;
     person.state = 'spawning';
-    // Don't immediately leave on the day you move in
     person.hasLeftToday = true;
     people.set(person.id, person);
     room.tenants.push(person.id);
@@ -601,9 +681,16 @@ export class Simulation {
         const floorBonus = person.preferences.floorPreference * (room.gridY / 10) * SATISFACTION_FACTORS.floorBonus.maxBonus;
         sat += floorBonus;
 
-        // Elevator access penalty for upper floors
-        if (room.gridY > SATISFACTION_FACTORS.elevatorAccess.threshold && !this.hasElevatorAccess(room.gridY)) {
-          sat += SATISFACTION_FACTORS.elevatorAccess.penalty;
+        // Elevator wait time frustration — scales exponentially with tenant rating
+        // 1-star: no impact. 2-star: slight. 5-star: very sensitive.
+        if (person.tenantRating > 1 && person.lastWaitTime > SATISFACTION_FACTORS.elevatorWait.graceHours) {
+          const excess = person.lastWaitTime - SATISFACTION_FACTORS.elevatorWait.graceHours;
+          const ratingScale = Math.pow(person.tenantRating - 1, 1.5) / Math.pow(4, 1.5); // 0 at 1-star, 1.0 at 5-star
+          const waitPenalty = Math.min(
+            SATISFACTION_FACTORS.elevatorWait.maxPenalty * ratingScale,
+            excess * SATISFACTION_FACTORS.elevatorWait.penaltyPerHour * ratingScale
+          );
+          sat -= waitPenalty;
         }
 
         // Noise from adjacent retail/restaurant

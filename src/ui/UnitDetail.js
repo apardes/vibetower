@@ -317,7 +317,13 @@ export class UnitDetail {
       elev.state === 'moving' ? `Moving ${elev.direction > 0 ? '\u25B2' : '\u25BC'}` :
       elev.state === 'stopped' ? `Stopped \u2014 Floor ${elev.currentFloor}` : elev.state;
 
-    // Elevator maintenance cost is fixed at $200/day
+    // Wait time indicator
+    const avgMin = elev.recentWaitTimes.length > 0 ? Math.round(elev.avgWaitTime * 60) : 0;
+    let waitColor, waitLabel;
+    if (avgMin <= 5) { waitColor = '#5cdb5c'; waitLabel = 'Good'; }
+    else if (avgMin <= 12) { waitColor = '#c4a44a'; waitLabel = 'Moderate'; }
+    else if (avgMin <= 20) { waitColor = '#e08040'; waitLabel = 'Long'; }
+    else { waitColor = '#cc4444'; waitLabel = 'Critical'; }
 
     // Passenger details
     let passHtml = '';
@@ -361,6 +367,10 @@ export class UnitDetail {
           <div>
             <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:2px;">Floors</div>
             <div style="color:#d0d0d8; font-weight:600;">${floors}</div>
+          </div>
+          <div>
+            <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:2px;">Avg Wait</div>
+            <div style="color:${waitColor}; font-weight:600;">${avgMin > 0 ? avgMin + ' min' : '\u2014'} <span style="font-weight:400; font-size:11px;">${avgMin > 0 ? waitLabel : ''}</span></div>
           </div>
         </div>
 

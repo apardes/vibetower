@@ -17,7 +17,18 @@ export class Elevator {
     this.capacity = 8;
 
     this.moveTime = 0.08;  // game-hours to travel one floor
-    this.stopTime = 0.15;  // game-hours to stay stopped (visible pause)
+    this.stopTime = 0.15;  // game-hours to stay stopped
+
+    // Wait time tracking
+    this.recentWaitTimes = []; // last N wait times in game-hours
+    this.avgWaitTime = 0;     // rolling average
+    this.longWaitAlerted = false; // prevent toast spam
+  }
+
+  recordWaitTime(hours) {
+    this.recentWaitTimes.push(hours);
+    if (this.recentWaitTimes.length > 20) this.recentWaitTimes.shift();
+    this.avgWaitTime = this.recentWaitTimes.reduce((s, t) => s + t, 0) / this.recentWaitTimes.length;
   }
 
   requestFloor(floor) {

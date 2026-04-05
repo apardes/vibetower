@@ -90,6 +90,8 @@ export class ToastNotification {
 
     eventBus.on('maintenanceNeeded', ({ room, issue }) => this.showMaintenance(room, issue));
     eventBus.on('maintenanceRepaired', ({ room }) => this.removeToastForRoom(room));
+    eventBus.on('tenantMovedOut', ({ room, reason }) => this.showMoveOut(room, reason));
+    eventBus.on('elevatorLongWait', ({ elevator }) => this.showElevatorWait(elevator));
     eventBus.on('navigateToRoom', (room) => this.navigateToRoom(room));
   }
 
@@ -150,6 +152,120 @@ export class ToastNotification {
         toast.style.transform = 'translateX(0)';
       });
     });
+  }
+
+  showMoveOut(room, reason) {
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      background: rgba(14, 14, 24, 0.96);
+      border: 1px solid rgba(100, 140, 200, 0.3);
+      border-left: 3px solid #6088bb;
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #d0d0d8;
+      font-size: 12px;
+      max-width: 280px;
+      pointer-events: auto;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+      opacity: 0;
+      transform: translateX(20px);
+      transition: all 0.3s;
+    `;
+    toast.innerHTML = `
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span style="font-size:13px;">\u{1F4E4}</span>
+        <span style="color:#8ab0dd;">Tenant left</span>
+        <span style="color:#666;">\u2014</span>
+        <span style="color:#888;">${room.name} F${room.gridY}</span>
+      </div>
+    `;
+
+    this.toastList.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(0)';
+      });
+    });
+
+    // Auto-clear after 3 seconds
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(20px)';
+        setTimeout(() => toast.remove(), 300);
+      }
+    }, 3000);
+  }
+
+  showElevatorWait(elevator) {
+    const avgMin = Math.round(elevator.avgWaitTime * 60);
+    const toast = document.createElement('div');
+    toast.className = 'toast-item';
+    toast.dataset.elevatorId = elevator.id;
+    toast.style.cssText = `
+      background: rgba(14, 14, 24, 0.96);
+      border: 1px solid rgba(200, 160, 40, 0.3);
+      border-left: 3px solid #c8a030;
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #d0d0d8;
+      font-size: 12px;
+      max-width: 280px;
+      pointer-events: auto;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+      opacity: 0;
+      transform: translateX(20px);
+      transition: all 0.3s;
+    `;
+    toast.innerHTML = `
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span style="font-size:13px;">\u{23F3}</span>
+        <span style="color:#c8a030; font-weight:600;">Long elevator waits</span>
+      </div>
+      <div style="color:#888; font-size:11px; margin-top:3px;">Avg wait: ${avgMin} min \u2014 F${elevator.minFloor}-F${elevator.maxFloor}</div>
+      <div style="color:#666; font-size:11px; margin-top:2px;">Click to view \u2014 Consider adding another elevator</div>
+    `;
+
+    toast.addEventListener('click', () => {
+      // Navigate to elevator and open status
+      this.renderer.camera.position.x = elevator.gridX + 0.5;
+      this.renderer.camera.position.y = (elevator.minFloor + elevator.maxFloor) / 2;
+      requestAnimationFrame(() => {
+        const screenPos = this.renderer.worldToScreen(elevator.gridX + 1, (elevator.minFloor + elevator.maxFloor) / 2);
+        eventBus.emit('click', {
+          x: elevator.gridX + 0.5,
+          y: elevator.minFloor + 1,
+          screenX: screenPos.x,
+          screenY: screenPos.y,
+        });
+      });
+      this.dismissToast(toast);
+    });
+
+    this.toastList.appendChild(toast);
+    this.updateClearAllButton();
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(0)';
+      });
+    });
+
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(20px)';
+        setTimeout(() => {
+          toast.remove();
+          this.updateClearAllButton();
+        }, 300);
+      }
+    }, 10000);
   }
 
   removeToastForRoom(room) {
