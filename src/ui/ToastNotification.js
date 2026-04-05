@@ -1,4 +1,5 @@
 import { eventBus } from '../utils/EventBus.js';
+import { formatMoney } from '../utils/helpers.js';
 
 export class ToastNotification {
   constructor(gameState, renderer, unitDetail) {
@@ -31,6 +32,29 @@ export class ToastNotification {
     this.clearAllBtn.addEventListener('mouseleave', () => { this.clearAllBtn.style.color = '#888'; this.clearAllBtn.style.background = 'rgba(14,14,24,0.9)'; });
     this.clearAllBtn.addEventListener('click', () => this.clearAll());
 
+    // Pay all button
+    this.payAllBtn = document.createElement('button');
+    this.payAllBtn.className = 'pay-all-btn';
+    this.payAllBtn.style.cssText = `
+      background: rgba(50, 140, 50, 0.5);
+      border: 1px solid rgba(80, 200, 80, 0.4);
+      border-radius: 8px;
+      padding: 6px 14px;
+      color: #88ee88;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      pointer-events: auto;
+      transition: all 0.15s;
+      align-self: flex-end;
+      display: none;
+      margin-bottom: 6px;
+    `;
+    this.payAllBtn.addEventListener('mouseenter', () => { this.payAllBtn.style.color = '#aaffaa'; this.payAllBtn.style.background = 'rgba(50,140,50,0.7)'; });
+    this.payAllBtn.addEventListener('mouseleave', () => { this.payAllBtn.style.color = '#88ee88'; this.payAllBtn.style.background = 'rgba(50,140,50,0.5)'; });
+    this.payAllBtn.addEventListener('click', () => this.payAll());
+
     // Scrollable toast list
     this.toastList = document.createElement('div');
     this.toastList.style.cssText = `
@@ -55,7 +79,12 @@ export class ToastNotification {
       pointer-events: none;
       font-family: 'Inter', -apple-system, sans-serif;
     `;
-    this.container.appendChild(this.clearAllBtn);
+    // Button row
+    this.btnRow = document.createElement('div');
+    this.btnRow.style.cssText = 'display:flex; gap:6px; align-self:flex-end; margin-bottom:6px;';
+    this.btnRow.appendChild(this.payAllBtn);
+    this.btnRow.appendChild(this.clearAllBtn);
+    this.container.appendChild(this.btnRow);
     this.container.appendChild(this.toastList);
     document.body.appendChild(this.container);
 
@@ -138,8 +167,45 @@ export class ToastNotification {
   }
 
   updateClearAllButton() {
-    const count = this.toastList.querySelectorAll('.toast-item').length;
+    const toasts = this.toastList.querySelectorAll('.toast-item');
+    const count = toasts.length;
     this.clearAllBtn.style.display = count > 1 ? 'block' : 'none';
+
+    // Pay all — calculate total cost of all outstanding issues
+    if (count > 1) {
+      let totalCost = 0;
+      const { tower } = this.gameState;
+      for (const [, room] of tower.rooms) {
+        if (room.maintenanceIssue) totalCost += room.maintenanceIssue.cost;
+      }
+      if (totalCost > 0 && this.gameState.money >= totalCost) {
+        this.payAllBtn.textContent = `Fix all ($${totalCost.toLocaleString()})`;
+        this.payAllBtn.style.display = 'block';
+      } else {
+        this.payAllBtn.style.display = 'none';
+      }
+    } else {
+      this.payAllBtn.style.display = 'none';
+    }
+  }
+
+  payAll() {
+    const { tower } = this.gameState;
+    const roomsToFix = [];
+    let totalCost = 0;
+    for (const [, room] of tower.rooms) {
+      if (room.maintenanceIssue) {
+        totalCost += room.maintenanceIssue.cost;
+        roomsToFix.push(room);
+      }
+    }
+    if (totalCost === 0 || this.gameState.money < totalCost) return;
+
+    for (const room of roomsToFix) {
+      this.gameState.spendMoney(room.maintenanceIssue.cost);
+      room.repair({ day: this.gameState.time.day, hour: this.gameState.time.hour });
+      eventBus.emit('maintenanceRepaired', { room });
+    }
   }
 
   clearAll() {
@@ -150,6 +216,7 @@ export class ToastNotification {
       setTimeout(() => t.remove(), 300);
     });
     this.clearAllBtn.style.display = 'none';
+    this.payAllBtn.style.display = 'none';
   }
 
   navigateToRoom(room) {
