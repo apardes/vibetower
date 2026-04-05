@@ -22,6 +22,9 @@ export class GameState {
       dailyIncome: 0,
       dailyExpense: 0,
     };
+
+    // Satisfaction history — one entry per game day, last 30 days
+    this.satisfactionHistory = [];
   }
 
   spendMoney(amount) {

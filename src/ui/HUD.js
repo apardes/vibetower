@@ -86,9 +86,13 @@ export class HUD {
     this.occEl.addEventListener('mouseleave', () => this.occEl.style.background = 'none');
     this.occEl.addEventListener('click', () => this.toggleUnitPanel());
 
-    // Satisfaction: emoji + % — indicator only, no click
+    // Satisfaction: emoji + % — click for history chart
     this.satEl = document.createElement('span');
-    this.satEl.style.cssText = indicatorStyle;
+    this.satEl.style.cssText = btnIndicatorStyle;
+    this.satEl.title = 'Satisfaction';
+    this.satEl.addEventListener('mouseenter', () => this.satEl.style.background = 'rgba(255,255,255,0.06)');
+    this.satEl.addEventListener('mouseleave', () => this.satEl.style.background = 'none');
+    this.satEl.addEventListener('click', (e) => { e.stopPropagation(); this.toggleSatPanel(); });
     this.updateSatisfactionIndicator();
 
     this.updatePopIndicator();
@@ -591,6 +595,127 @@ export class HUD {
     }
 
     body.innerHTML = html;
+  }
+
+  // --- Satisfaction history chart panel ---
+
+  toggleSatPanel() {
+    if (!this.satPanel) {
+      const { panel, body, closeBtn } = this._createPanel('Satisfaction');
+      this.satPanel = panel;
+      this.satPanelBody = body;
+      closeBtn.addEventListener('click', () => this.toggleSatPanel());
+    }
+
+    // Close other panels
+    if (this.popPanel && this.popPanel.style.display !== 'none') this.popPanel.style.display = 'none';
+    if (this.unitPanel && this.unitPanel.style.display !== 'none') this.unitPanel.style.display = 'none';
+
+    const showing = this.satPanel.style.display !== 'none';
+    this.satPanel.style.display = showing ? 'none' : 'flex';
+    if (!showing) this.updateSatPanel();
+  }
+
+  updateSatPanel() {
+    const body = this.satPanelBody;
+    const history = this.gameState.satisfactionHistory;
+    const current = Math.round(this.gameState.stats.averageSatisfaction);
+
+    if (history.length < 2) {
+      body.innerHTML = `
+        <div style="padding:16px; text-align:center; color:#888; font-size:13px;">
+          <div style="font-size:28px; font-weight:700; color:#d0d0d8; margin-bottom:4px;">${current}%</div>
+          <div>Not enough data yet. Check back after a few days.</div>
+        </div>`;
+      return;
+    }
+
+    // Draw chart with canvas
+    const chartW = 320;
+    const chartH = 120;
+    const padL = 30, padR = 10, padT = 10, padB = 20;
+    const graphW = chartW - padL - padR;
+    const graphH = chartH - padT - padB;
+
+    let html = `
+      <div style="padding:12px 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">
+          <span style="font-size:22px; font-weight:700; color:#d0d0d8;">${current}%</span>
+          <span style="color:#666; font-size:11px;">Last ${history.length} days</span>
+        </div>
+        <canvas id="sat-chart" width="${chartW}" height="${chartH}" style="width:100%; height:${chartH}px; border-radius:6px; background:rgba(255,255,255,0.02);"></canvas>
+      </div>`;
+
+    body.innerHTML = html;
+
+    // Draw on canvas
+    const canvas = body.querySelector('#sat-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const minSat = Math.max(0, Math.min(...history.map(h => h.satisfaction)) - 10);
+    const maxSat = Math.min(100, Math.max(...history.map(h => h.satisfaction)) + 10);
+    const range = maxSat - minSat || 1;
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let pct of [25, 50, 75]) {
+      if (pct < minSat || pct > maxSat) continue;
+      const y = padT + graphH - ((pct - minSat) / range) * graphH;
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(padL + graphW, y);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.font = '9px Inter, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(pct + '%', padL - 4, y + 3);
+    }
+
+    // Line chart
+    ctx.beginPath();
+    for (let i = 0; i < history.length; i++) {
+      const x = padL + (i / (history.length - 1)) * graphW;
+      const y = padT + graphH - ((history[i].satisfaction - minSat) / range) * graphH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#5cdb5c';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Fill under the line
+    const lastX = padL + graphW;
+    const lastY = padT + graphH - ((history[history.length - 1].satisfaction - minSat) / range) * graphH;
+    ctx.lineTo(lastX, padT + graphH);
+    ctx.lineTo(padL, padT + graphH);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(92, 219, 92, 0.08)';
+    ctx.fill();
+
+    // Dots on data points
+    for (let i = 0; i < history.length; i++) {
+      const x = padL + (i / (history.length - 1)) * graphW;
+      const y = padT + graphH - ((history[i].satisfaction - minSat) / range) * graphH;
+      ctx.beginPath();
+      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#5cdb5c';
+      ctx.fill();
+    }
+
+    // Day labels
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '9px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    const labelInterval = Math.max(1, Math.floor(history.length / 5));
+    for (let i = 0; i < history.length; i += labelInterval) {
+      const x = padL + (i / (history.length - 1)) * graphW;
+      ctx.fillText('D' + history[i].day, x, chartH - 4);
+    }
+    // Always label the last day
+    ctx.fillText('D' + history[history.length - 1].day, lastX, chartH - 4);
   }
 
   updateSpeedButtons() {

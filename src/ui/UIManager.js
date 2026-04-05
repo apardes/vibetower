@@ -62,6 +62,12 @@ export class UIManager {
       originalToggleLog();
     };
 
+    const originalToggleSat = this.hud.toggleSatPanel.bind(this.hud);
+    this.hud.toggleSatPanel = () => {
+      this._closeAllExcept('satPanel');
+      originalToggleSat();
+    };
+
     const originalToggleInfo = this.toolbar.toggleInfoPanel.bind(this.toolbar);
     this.toolbar.toggleInfoPanel = () => {
       this._closeAllExcept('infoPanel');
@@ -74,6 +80,7 @@ export class UIManager {
     this.panels = [
       { id: 'popPanel', el: this.hud.popPanel, trigger: this.hud.popEl, close: () => { if (this.hud.popPanel) this.hud.popPanel.style.display = 'none'; } },
       { id: 'unitPanel', el: this.hud.unitPanel, trigger: this.hud.occEl, close: () => { if (this.hud.unitPanel) this.hud.unitPanel.style.display = 'none'; } },
+      { id: 'satPanel', el: this.hud.satPanel, trigger: this.hud.satEl, close: () => { if (this.hud.satPanel) this.hud.satPanel.style.display = 'none'; } },
       { id: 'helpOverlay', el: this.hud.helpOverlay, trigger: null, close: () => { this.hud.helpOverlay.style.display = 'none'; } },
       { id: 'logPanel', el: this.activityLog.panel, trigger: this.activityLog.btn, close: () => { this.activityLog.panel.style.display = 'none'; } },
       { id: 'infoPanel', el: this.toolbar.infoPanel, trigger: null, close: () => { this.toolbar.infoPanel.style.display = 'none'; } },

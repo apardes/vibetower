@@ -385,6 +385,11 @@ export class Simulation {
     this.starRating.evaluate();
     this.checkMaintenance();
 
+    // Record daily satisfaction snapshot
+    const hist = this.gameState.satisfactionHistory;
+    hist.push({ day: this.gameState.time.day, satisfaction: Math.round(this.gameState.stats.averageSatisfaction) });
+    if (hist.length > 30) hist.shift();
+
     // Reset daily flags for all people
     for (const [, person] of this.gameState.people) {
       person.resetDay();
