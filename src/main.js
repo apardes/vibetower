@@ -15,6 +15,7 @@ import { CameraController } from './input/CameraController.js';
 import { BuildTool } from './input/BuildTool.js';
 import { UIManager } from './ui/UIManager.js';
 import { UnitDetail } from './ui/UnitDetail.js';
+import { ToastNotification } from './ui/ToastNotification.js';
 import { eventBus } from './utils/EventBus.js';
 
 // Rendering
@@ -42,6 +43,7 @@ const buildTool = new BuildTool(gameState, gameState.tower, towerRenderer, gridO
 // UI
 const ui = new UIManager(gameState);
 const unitDetail = new UnitDetail(gameState, renderer);
+const toasts = new ToastNotification(gameState, renderer, unitDetail);
 ui.externalPanels.push({
   id: 'unitDetail',
   el: unitDetail.panel,

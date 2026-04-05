@@ -27,7 +27,15 @@ export class UnitDetail {
 
     eventBus.on('click', (pos) => this.onClick(pos));
     eventBus.on('roomRemoved', () => this.close());
-    eventBus.on('tick', () => this.refresh());
+    eventBus.on('maintenanceNeeded', () => this.refresh());
+    eventBus.on('maintenanceRepaired', () => this.refresh());
+
+    // Use event delegation for the repair button
+    this.panel.addEventListener('click', (e) => {
+      if (e.target.id === 'repair-btn' || e.target.closest('#repair-btn')) {
+        this.handleRepair();
+      }
+    });
   }
 
   onClick({ x, y, screenX, screenY }) {
@@ -85,7 +93,7 @@ export class UnitDetail {
     // Position panel to the right of the unit
     const rightEdge = this.renderer.worldToScreen(worldX + width, worldY + height / 2);
     let left = rightEdge.x + 24;
-    let top = rightEdge.y - 60;
+    let top = rightEdge.y - 120;
 
     // If it goes off the right edge, put it on the left side of the unit
     if (left + 290 > window.innerWidth) {
@@ -216,13 +224,83 @@ export class UnitDetail {
         ` : ''}
       </div>
 
+      ${room.maintenanceIssue ? `
+      <div style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.06); background:rgba(200,80,40,0.08);">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+          <span style="font-size:14px;">\u26A0\uFE0F</span>
+          <span style="color:#e08040; font-weight:600; font-size:13px;">${room.maintenanceIssue.name}</span>
+        </div>
+        <div style="color:#888; font-size:12px; margin-bottom:8px;">${room.maintenanceIssue.desc}</div>
+        <button id="repair-btn" style="
+          padding:6px 14px;
+          border:none;
+          border-radius:6px;
+          background:rgba(80,160,80,0.2);
+          color:#5cdb5c;
+          cursor:pointer;
+          font-size:12px;
+          font-family:'Inter',sans-serif;
+          font-weight:600;
+          transition:all 0.15s;
+          width:100%;
+        ">\u{1F527} Repair \u2014 ${formatMoney(room.maintenanceIssue.cost)}</button>
+      </div>
+      ` : ''}
+
       ${residentsHtml ? `
-      <div style="padding:10px 16px; max-height:150px; overflow-y:auto;">
+      <div style="padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.06);">
         <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">Occupants</div>
         ${residentsHtml}
       </div>
       ` : ''}
+
+      ${room.log && room.log.length > 0 ? `
+      <div style="padding:10px 16px; max-height:120px; overflow-y:auto;">
+        <div style="color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;">Activity</div>
+        ${this.renderLog(room.log)}
+      </div>
+      ` : ''}
     `;
+
+  }
+
+  handleRepair() {
+    const room = this.selectedRoom;
+    if (!room || !room.maintenanceIssue) return;
+    const cost = room.maintenanceIssue.cost;
+    if (this.gameState.money < cost) return;
+    this.gameState.spendMoney(cost);
+    room.repair({ day: this.gameState.time.day, hour: this.gameState.time.hour });
+    eventBus.emit('maintenanceRepaired', { room });
+    this.render();
+  }
+
+  renderLog(log) {
+    const typeIcons = {
+      built: '\u{1F3D7}',
+      move_in: '\u{1F4E5}',
+      move_out: '\u{1F4E4}',
+      departure: '\u{1F6B6}',
+      income: '\u{1F4B0}',
+      satisfaction: '\u{1F4CA}',
+      repair: '\u{1F527}',
+      damage: '\u{26A0}',
+    };
+
+    return log.slice(0, 15).map(entry => {
+      const icon = typeIcons[entry.type] || '\u{1F4DD}';
+      const h = Math.floor(entry.hour);
+      const m = Math.floor((entry.hour % 1) * 60);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      const time = `D${entry.day} ${h12}:${m.toString().padStart(2, '0')}${ampm}`;
+
+      return `<div style="display:flex; align-items:center; padding:3px 0; gap:6px; font-size:11px;">
+        <span style="flex-shrink:0;">${icon}</span>
+        <span style="color:#888; flex:1;">${entry.message}</span>
+        <span style="color:#555; font-size:10px; white-space:nowrap;">${time}</span>
+      </div>`;
+    }).join('');
   }
 
   renderElevator() {

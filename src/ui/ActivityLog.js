@@ -9,10 +9,11 @@ export class ActivityLog {
 
     // Tab definitions — add new tabs here
     this.tabs = [
+      { id: 'alerts', label: '\u26A0\uFE0F Alerts', entries: [] },
       { id: 'financial', label: 'Financial', entries: [] },
       { id: 'occupancy', label: 'Occupancy', entries: [] },
     ];
-    this.activeTab = 'financial';
+    this.activeTab = 'alerts';
 
     this.buildButton();
     this.buildPanel();
@@ -27,14 +28,14 @@ export class ActivityLog {
     this.rebuildTabBar();
   }
 
-  log(tabId, message, type = 'info') {
+  log(tabId, message, type = 'info', room = null) {
     const tab = this.tabs.find(t => t.id === tabId);
     if (!tab) return;
     const { day, hour } = this.gameState.time;
     const h = Math.floor(hour);
     const m = Math.floor((hour % 1) * 60);
     const timestamp = `D${day} ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-    tab.entries.unshift({ timestamp, message, type });
+    tab.entries.unshift({ timestamp, message, type, room });
     if (tab.entries.length > MAX_ENTRIES) tab.entries.pop();
     if (this.panel.style.display !== 'none' && this.activeTab === tabId) {
       this.updateBody();
@@ -45,7 +46,6 @@ export class ActivityLog {
 
   buildButton() {
     this.btn = document.createElement('button');
-    this.btn.textContent = '\u{1F4CB} Log';
     this.btn.title = 'Activity Log';
     this.btn.style.cssText = `
       border: none;
@@ -58,7 +58,10 @@ export class ActivityLog {
       font-weight: 500;
       padding: 4px 10px;
       transition: all 0.15s;
+      position: relative;
     `;
+    this.alertCount = 0;
+    this.updateButtonLabel();
     this.btn.addEventListener('mouseenter', () => {
       this.btn.style.background = 'rgba(255,255,255,0.06)';
       this.btn.style.color = '#bbb';
@@ -180,14 +183,30 @@ export class ActivityLog {
     };
 
     let html = '';
-    for (const entry of tab.entries) {
+    for (let i = 0; i < tab.entries.length; i++) {
+      const entry = tab.entries[i];
       const color = typeColors[entry.type] || '#aaa';
-      html += `<div style="padding: 4px 16px; display: flex; gap: 10px; border-bottom: 1px solid #1a1a2a;">
+      const clickable = entry.room ? 'cursor:pointer;' : '';
+      const hoverBg = entry.room ? 'onmouseenter="this.style.background=\'rgba(255,255,255,0.04)\'" onmouseleave="this.style.background=\'none\'"' : '';
+      html += `<div data-entry-idx="${i}" style="padding: 4px 16px; display: flex; gap: 10px; border-bottom: 1px solid #1a1a2a; ${clickable}" ${hoverBg}>
         <span style="color: #555; font-size: 11px; min-width: 70px; flex-shrink: 0;">${entry.timestamp}</span>
-        <span style="color: ${color};">${entry.message}</span>
+        <span style="color: ${color}; flex:1;">${entry.message}</span>
+        ${entry.room ? '<span style="color:#555;font-size:11px;">\u279C</span>' : ''}
       </div>`;
     }
     this.body.innerHTML = html;
+
+    // Attach click handlers for navigable entries
+    this.body.querySelectorAll('[data-entry-idx]').forEach(el => {
+      const idx = parseInt(el.dataset.entryIdx);
+      const entry = tab.entries[idx];
+      if (entry && entry.room) {
+        el.addEventListener('click', () => {
+          eventBus.emit('navigateToRoom', entry.room);
+          this.toggle(); // close the log panel
+        });
+      }
+    });
   }
 
   toggle() {
@@ -258,5 +277,48 @@ export class ActivityLog {
       }
       this.lastPopulation = stats.totalPopulation;
     });
+
+    eventBus.on('maintenanceNeeded', ({ room, issue }) => {
+      this.log('alerts', `\u26A0\uFE0F ${room.name} (F${room.gridY}): ${issue.name} \u2014 ${formatMoney(issue.cost)}`, 'negative', room);
+      this.log('financial', `Maintenance needed: ${room.name} \u2014 ${issue.name}`, 'negative');
+      this.alertCount++;
+      this.updateButtonLabel();
+    });
+
+    eventBus.on('maintenanceRepaired', ({ room }) => {
+      const lastIssue = room.log.find(e => e.type === 'repair');
+      const costText = lastIssue?.data?.cost ? ` \u2014 ${formatMoney(lastIssue.data.cost)}` : '';
+      this.log('alerts', `\u2705 ${room.name} (F${room.gridY}): Repaired${costText}`, 'positive', room);
+      this.log('financial', `Repair completed: ${room.name}${costText}`, 'expense');
+      this.alertCount = Math.max(0, this.alertCount - 1);
+      this.updateButtonLabel();
+    });
+
+    eventBus.on('newDay', (day) => {
+      this.log('alerts', `--- Day ${day} ---`, 'info');
+    });
+  }
+
+  updateButtonLabel() {
+    if (this.alertCount > 0) {
+      this.btn.innerHTML = `\u{1F4CB} Log <span style="
+        position:absolute;
+        top:-4px;
+        right:-4px;
+        background:#e04040;
+        color:#fff;
+        font-size:10px;
+        font-weight:700;
+        min-width:16px;
+        height:16px;
+        border-radius:8px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:0 4px;
+      ">${this.alertCount}</span>`;
+    } else {
+      this.btn.innerHTML = '\u{1F4CB} Log';
+    }
   }
 }

@@ -17,6 +17,11 @@ import { eventBus } from '../utils/EventBus.js';
 
 const WALK_SPEED = 4; // world units per game-hour
 
+// Helper to get current game time for room logs
+function gt(gameState) {
+  return { day: gameState.time.day, hour: gameState.time.hour };
+}
+
 export class Simulation {
   constructor(gameState, sky) {
     this.gameState = gameState;
@@ -378,6 +383,7 @@ export class Simulation {
   onNewDay() {
     this.economy.collectRent();
     this.starRating.evaluate();
+    this.checkMaintenance();
 
     // Reset daily flags for all people
     for (const [, person] of this.gameState.people) {
@@ -387,33 +393,64 @@ export class Simulation {
     eventBus.emit('newDay', this.gameState.time.day);
   }
 
+  checkMaintenance() {
+    const { tower, time } = this.gameState;
+    const day = time.day;
+
+    for (const [, room] of tower.rooms) {
+      if (room.maintenanceIssue) continue; // already has an unresolved issue
+
+      // Occupied units need maintenance sooner — reduce effective interval
+      // Vacant units still need maintenance but less frequently
+      let effectiveDay = room.nextMaintenanceDay;
+      if (room.occupied) {
+        // Occupancy accelerates wear: full occupancy = 30% sooner
+        const occRate = room.capacity > 0 ? room.tenants.length / room.capacity : 0.5;
+        effectiveDay -= Math.floor(occRate * 0.3 * (room.nextMaintenanceDay - day + 5));
+      }
+
+      if (day < effectiveDay) continue;
+
+      const issue = room.generateIssue();
+      if (!issue) continue;
+
+      room.maintenanceIssue = issue;
+      room.scheduleNextMaintenance(day);
+      room.logEvent('damage', `Issue: ${issue.name}`, { cost: issue.cost }, gt(this.gameState));
+
+      eventBus.emit('maintenanceNeeded', { room, issue });
+    }
+  }
+
   // Called every tick — trickle in new tenants and handle returns
   tickSpawnsAndReturns(hour) {
     this.trySpawnNewTenants(hour);
     this.tryReturnPeople(hour);
   }
 
-  // Trickle new tenants in throughout the day (small chance per tick per empty slot)
+  // Fill empty rooms with a random number of tenants (1 to capacity) all at once.
+  // Once a room has any tenants, no more are added.
   trySpawnNewTenants(hour) {
     // Only spawn during reasonable hours (6am - 10pm)
     if (hour < 6 || hour > 22) return;
 
-    const { tower, people } = this.gameState;
+    const { tower } = this.gameState;
     const spawnChancePerTick = 0.002 + (this.gameState.starRating * 0.001);
 
     for (const [, room] of tower.rooms) {
       if (room.type === 'elevator' || room.type === 'lobby') continue;
+      if (room.capacity <= 0) continue;
 
-      // For rooms with capacity, check empty slots
-      if (room.capacity > 0) {
-        const emptySlots = room.capacity - room.tenants.length;
-        if (emptySlots <= 0) continue;
+      // Only fill completely empty rooms
+      if (room.tenants.length > 0) continue;
 
-        for (let i = 0; i < emptySlots; i++) {
-          if (Math.random() < spawnChancePerTick) {
-            this.spawnPerson(room);
-          }
+      if (Math.random() < spawnChancePerTick) {
+        // Random occupancy: 1 to capacity
+        const count = 1 + Math.floor(Math.random() * room.capacity);
+        for (let i = 0; i < count; i++) {
+          this.spawnPerson(room);
         }
+        room.logEvent('move_in', `${count} tenant${count > 1 ? 's' : ''} moved in`, { count }, gt(this.gameState));
       }
     }
   }
