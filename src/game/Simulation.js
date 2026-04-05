@@ -1,4 +1,4 @@
-import { BASE_TICK_HOURS, TICKS_PER_SECOND, TOWER_MAX_WIDTH } from '../constants.js';
+import { BASE_TICK_HOURS, TICKS_PER_SECOND, TOWER_MAX_WIDTH, DEMAND_CONFIG, SATISFACTION_FACTORS, ROOM_TYPES } from '../constants.js';
 
 // Get spawn/exit x positions relative to the building
 function getBuildingEdges(tower) {
@@ -415,8 +415,9 @@ export class Simulation {
       if (!issue) continue;
 
       room.maintenanceIssue = issue;
+      room.maintenanceStartDay = day;
       room.scheduleNextMaintenance(day);
-      room.logEvent('damage', `Issue: ${issue.name}`, { cost: issue.cost }, gt(this.gameState));
+      room.logEvent('damage', `Issue: ${issue.name}`, { cost: issue.cost, severity: issue.severity }, gt(this.gameState));
 
       eventBus.emit('maintenanceNeeded', { room, issue });
     }
@@ -428,24 +429,56 @@ export class Simulation {
     this.tryReturnPeople(hour);
   }
 
-  // Fill empty rooms with a random number of tenants (1 to capacity) all at once.
-  // Once a room has any tenants, no more are added.
+  // Fill empty rooms based on dynamic building demand.
+  // Demand varies by unit type, star rating, and building conditions.
   trySpawnNewTenants(hour) {
-    // Only spawn during reasonable hours (6am - 10pm)
     if (hour < 6 || hour > 22) return;
 
     const { tower } = this.gameState;
-    const spawnChancePerTick = 0.002 + (this.gameState.starRating * 0.001);
+    const star = this.gameState.starRating;
+    const cfg = DEMAND_CONFIG;
+
+    // Calculate building-wide factors
+    let totalRooms = 0, occupiedRooms = 0, healthyRooms = 0, amenityCount = 0;
+    for (const [, room] of tower.rooms) {
+      if (room.type === 'elevator' || room.type === 'lobby') continue;
+      totalRooms++;
+      if (room.tenants.length > 0) occupiedRooms++;
+      if (!room.maintenanceIssue) healthyRooms++;
+      const def = ROOM_TYPES[room.type];
+      if (def && def.amenityEffect) amenityCount++;
+    }
+
+    const occupancyRate = totalRooms > 0 ? occupiedRooms / totalRooms : 0;
+    const maintenanceHealth = totalRooms > 0 ? healthyRooms / totalRooms : 1;
+    const vacancyRate = totalRooms > 0 ? 1 - occupancyRate : 0;
+    const amenityRatio = totalRooms > 0 ? Math.min(1, amenityCount / Math.max(totalRooms, 1)) : 0;
+
+    const buildingBonus =
+      occupancyRate * cfg.factors.occupancyRate +
+      maintenanceHealth * cfg.factors.maintenanceHealth +
+      amenityRatio * cfg.factors.amenityBonus +
+      (vacancyRate > 0.5 ? cfg.factors.vacancyPenalty : 0);
 
     for (const [, room] of tower.rooms) {
       if (room.type === 'elevator' || room.type === 'lobby') continue;
       if (room.capacity <= 0) continue;
-
-      // Only fill completely empty rooms
       if (room.tenants.length > 0) continue;
 
-      if (Math.random() < spawnChancePerTick) {
-        // Random occupancy: 1 to capacity
+      // Star-based demand multiplier for this unit type
+      const starDemand = cfg.starDemand[room.type];
+      const starMult = starDemand ? starDemand[Math.min(star, 5) - 1] || starDemand[0] : 0.5;
+
+      // Elevator access bonus
+      const hasElevator = room.gridY <= 2 || this.hasElevatorAccess(room.gridY);
+      const elevatorBonus = (room.gridY > 0 && hasElevator) ? cfg.factors.elevatorAccess : 0;
+
+      // Final spawn chance
+      const chance = Math.max(0.0005, Math.min(0.01,
+        cfg.baseChancePerTick * starMult * (1 + buildingBonus + elevatorBonus)
+      ));
+
+      if (Math.random() < chance) {
         const count = 1 + Math.floor(Math.random() * room.capacity);
         for (let i = 0; i < count; i++) {
           this.spawnPerson(room);
@@ -528,26 +561,151 @@ export class Simulation {
   // =====================
 
   updateSatisfaction() {
-    const { tower } = this.gameState;
+    const { tower, people, time } = this.gameState;
+    const day = time.day;
+
+    // Collect all rooms with maintenance issues and amenity effects for scoped lookups
+    const issueRooms = [];
+    const amenityRooms = [];
+    for (const [, room] of tower.rooms) {
+      if (room.maintenanceIssue) issueRooms.push(room);
+      const def = ROOM_TYPES[room.type];
+      if (def && def.amenityEffect) amenityRooms.push(room);
+    }
 
     for (const [, room] of tower.rooms) {
       if (room.type === 'lobby' || room.type === 'elevator') continue;
-
-      let sat = 80;
-      if (room.gridY <= 3) sat += 10;
-      if (room.gridY > 2 && !this.hasElevatorAccess(room.gridY)) sat -= 30;
-      if (room.gridY === 0) sat += 5;
-
-      if (room.type === 'apartment') {
-        for (let dx = -1; dx <= room.width; dx++) {
-          const neighbor = tower.getRoomAt(room.gridX + dx, room.gridY);
-          if (neighbor && neighbor.id !== room.id && neighbor.type === 'retail') {
-            sat -= 10;
-          }
-        }
+      if (room.tenants.length === 0) {
+        room.satisfaction = SATISFACTION_FACTORS.baseComfort[room.type] || 60;
+        continue;
       }
 
-      room.satisfaction = Math.max(0, Math.min(100, sat));
+      let totalSat = 0;
+
+      for (const personId of room.tenants) {
+        const person = people.get(personId);
+        if (!person) continue;
+
+        // Base comfort for unit type
+        let sat = SATISFACTION_FACTORS.baseComfort[room.type] || 60;
+
+        // Floor preference bonus
+        const floorBonus = person.preferences.floorPreference * (room.gridY / 10) * SATISFACTION_FACTORS.floorBonus.maxBonus;
+        sat += floorBonus;
+
+        // Elevator access penalty for upper floors
+        if (room.gridY > SATISFACTION_FACTORS.elevatorAccess.threshold && !this.hasElevatorAccess(room.gridY)) {
+          sat += SATISFACTION_FACTORS.elevatorAccess.penalty;
+        }
+
+        // Noise from adjacent retail/restaurant
+        for (let dx = -1; dx <= room.width; dx++) {
+          const neighbor = tower.getRoomAt(room.gridX + dx, room.gridY);
+          if (!neighbor || neighbor.id === room.id) continue;
+          const noisePenalty = SATISFACTION_FACTORS.noisePenalty[neighbor.type];
+          if (noisePenalty) {
+            // Reduce penalty by noise tolerance
+            sat += noisePenalty * (1 - person.preferences.noiseTolerance * 0.7);
+          }
+        }
+
+        // === Maintenance impact ===
+        // Own room issue
+        if (room.maintenanceIssue) {
+          const sev = room.maintenanceIssue.severity || 1;
+          const daysUnresolved = Math.max(0, day - room.maintenanceStartDay);
+          const penalty = (sev * -4 * (1 + daysUnresolved * 0.8));
+          sat += penalty;
+        }
+
+        // Other rooms' issues that affect this tenant
+        for (const iRoom of issueRooms) {
+          if (iRoom.id === room.id) continue; // already handled above
+          const def = ROOM_TYPES[iRoom.type];
+          if (!def || !def.maintenanceImpact) continue;
+          const impact = def.maintenanceImpact;
+
+          // Check if this tenant is in the affected set
+          let affected = false;
+          if (impact.target === 'all') {
+            affected = true;
+          } else if (impact.target === 'elevator') {
+            // Check if this person's floor is serviced by the same elevator
+            for (const [, elev] of tower.elevators) {
+              if (elev.gridX === iRoom.gridX &&
+                  room.gridY >= elev.minFloor && room.gridY <= elev.maxFloor) {
+                affected = true;
+                break;
+              }
+            }
+          } else if (impact.target === 'subset') {
+            // Determine if this tenant is in the subset
+            if (impact.selection === 'proximity') {
+              const floorDist = Math.abs(room.gridY - iRoom.gridY);
+              const proximityChance = impact.reach * Math.max(0.3, 1 - floorDist * 0.05);
+              // Use stable hash so same tenants stay affected between ticks
+              const hash = (person.id.charCodeAt(2) || 0) + iRoom.id.charCodeAt(2) || 0;
+              affected = (hash % 100) / 100 < proximityChance;
+            } else {
+              // random selection — stable per tenant+room pair
+              const hash = (person.id.charCodeAt(3) || 0) + (iRoom.id.charCodeAt(3) || 0);
+              affected = (hash % 100) / 100 < impact.reach;
+            }
+          }
+
+          if (affected) {
+            const sev = iRoom.maintenanceIssue.severity || 1;
+            const daysUnresolved = Math.max(0, day - iRoom.maintenanceStartDay);
+            const basePenalty = (sev * -4 * (1 + daysUnresolved * 0.8));
+            sat += basePenalty * impact.intensity;
+          }
+        }
+
+        // === Amenity effects ===
+        for (const aRoom of amenityRooms) {
+          const def = ROOM_TYPES[aRoom.type];
+          const ae = def.amenityEffect;
+          if (!ae) continue;
+          if (!ae.appealsTo.includes(room.type)) continue;
+
+          let benefited = false;
+          if (ae.target === 'all') {
+            benefited = true;
+          } else if (ae.target === 'subset') {
+            if (ae.selection === 'proximity') {
+              const floorDist = Math.abs(room.gridY - aRoom.gridY);
+              const proximityChance = ae.reach * Math.max(0.4, 1 - floorDist * 0.03);
+              const hash = (person.id.charCodeAt(1) || 0) + (aRoom.id.charCodeAt(1) || 0);
+              benefited = (hash % 100) / 100 < proximityChance;
+            } else {
+              const hash = (person.id.charCodeAt(4) || 0) + (aRoom.id.charCodeAt(4) || 0);
+              benefited = (hash % 100) / 100 < ae.reach;
+            }
+          }
+
+          if (benefited) {
+            const boost = ae.boostMin + person.preferences.amenitySensitivity * (ae.boostMax - ae.boostMin);
+            sat += boost;
+          }
+        }
+
+        // Clamp target satisfaction
+        const targetSat = Math.max(0, Math.min(100, sat));
+
+        // Satisfaction drops fast but recovers slowly
+        if (targetSat < person.satisfaction) {
+          // Dropping — immediate
+          person.satisfaction = targetSat;
+        } else {
+          // Recovering — very gradual (recover ~0.3 points per update cycle)
+          person.satisfaction = Math.min(targetSat, person.satisfaction + 0.3);
+        }
+
+        totalSat += person.satisfaction;
+      }
+
+      // Room satisfaction = average of tenant satisfactions
+      room.satisfaction = Math.round(totalSat / room.tenants.length);
     }
   }
 

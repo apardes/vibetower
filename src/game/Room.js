@@ -27,7 +27,8 @@ export class Room {
 
     // Maintenance state
     const mConfig = MAINTENANCE[type];
-    this.maintenanceIssue = null; // null or { name, desc, cost }
+    this.maintenanceIssue = null; // null or { name, desc, cost, severity }
+    this.maintenanceStartDay = 0; // game day when issue began
     this.nextMaintenanceDay = mConfig
       ? Math.floor(mConfig.interval + (Math.random() - 0.5) * mConfig.variance * 2)
       : 999;
@@ -64,7 +65,7 @@ export class Room {
     }
 
     const cost = Math.floor(template.costMin + Math.random() * (template.costMax - template.costMin));
-    return { name: template.name, desc: template.desc, cost };
+    return { name: template.name, desc: template.desc, cost, severity: template.severity || 1 };
   }
 
   // Schedule the next maintenance event (days from now)
@@ -80,6 +81,7 @@ export class Room {
     const cost = this.maintenanceIssue.cost;
     this.logEvent('repair', `Repaired: ${this.maintenanceIssue.name}`, { cost }, gameTime);
     this.maintenanceIssue = null;
+    this.maintenanceStartDay = 0;
     return cost;
   }
 

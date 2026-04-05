@@ -15,7 +15,14 @@ export class Person {
     this.id = generateId();
     this.homeRoom = homeRoom;
     this.state = 'spawning';
-    this.satisfaction = 80 + Math.random() * 20;
+    this.satisfaction = 70;
+
+    // Personal preferences — affect how this tenant reacts to amenities, noise, etc.
+    this.preferences = {
+      amenitySensitivity: 0.5 + Math.random() * 1.0,  // 0.5-1.5x amenity effects
+      noiseTolerance: Math.random(),                    // 0-1, higher = less bothered by noise
+      floorPreference: Math.random(),                   // 0=ground lover, 1=penthouse lover
+    };
     this.floor = 0;
     this.position = { x: 0, y: 0.5 };
     this.homeOffset = 0.5; // overwritten by spawnPerson with evenly-spaced slot
