@@ -1,4 +1,4 @@
-import { BASE_TICK_HOURS, TICKS_PER_SECOND, TOWER_MAX_WIDTH, DEMAND_CONFIG, SATISFACTION_FACTORS, ROOM_TYPES, MOVEOUT_CONFIG, ELEVATOR_TIME_SCALE } from '../constants.js';
+import { BASE_TICK_HOURS, TICKS_PER_SECOND, TOWER_MAX_WIDTH, DEMAND_CONFIG, SATISFACTION_FACTORS, ROOM_TYPES, MOVEOUT_CONFIG, ELEVATOR_TIME_SCALE, MURPHYS_LAW } from '../constants.js';
 
 // Get spawn/exit x positions relative to the building
 function getBuildingEdges(tower) {
@@ -754,6 +754,11 @@ export class Simulation {
     const { tower, time } = this.gameState;
     const day = time.day;
 
+    // Murphy's Law: bias toward severe issues when cash is low
+    const ml = MURPHYS_LAW;
+    const murphysActive = day > ml.graceDays && this.gameState.money < ml.cashThreshold;
+    const severeMult = murphysActive ? ml.severeWeightMultiplier : 1;
+
     for (const [, room] of tower.rooms) {
       if (room.maintenanceIssue) continue;
       if (day < room.nextMaintenanceDay) continue;
@@ -771,7 +776,7 @@ export class Simulation {
 
       if (Math.random() > chance) continue;
 
-      const issue = room.generateIssue();
+      const issue = room.generateIssue(severeMult);
       if (!issue) continue;
 
       room.maintenanceIssue = issue;

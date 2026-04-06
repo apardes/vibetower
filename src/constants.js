@@ -286,6 +286,14 @@ export const MAINTENANCE = {
   },
 };
 
+// Murphy's Law — severe issues become more likely when cash is low
+export const MURPHYS_LAW = {
+  cashThreshold: 10000,
+  graceDays: 30,
+  severityThreshold: 3,
+  severeWeightMultiplier: 20,
+};
+
 // Room schedules — defines daily rhythms per room type
 export const ROOM_SCHEDULES = {
   apartment: {

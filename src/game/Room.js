@@ -55,16 +55,21 @@ export class Room {
   }
 
   // Generate a random maintenance issue using weighted selection
-  generateIssue() {
+  // severeWeightMultiplier: when > 1, multiplies weights of severity 3+ issues (Murphy's Law)
+  generateIssue(severeWeightMultiplier = 1) {
     const mConfig = MAINTENANCE[this.type];
     if (!mConfig || !mConfig.issues.length) return null;
 
-    // Weighted random selection
-    const totalWeight = mConfig.issues.reduce((sum, i) => sum + (i.weight || 1), 0);
+    // Weighted random selection (with optional severe bias)
+    const totalWeight = mConfig.issues.reduce((sum, i) => {
+      const w = i.weight || 1;
+      return sum + ((i.severity || 1) >= 3 && severeWeightMultiplier > 1 ? w * severeWeightMultiplier : w);
+    }, 0);
     let roll = Math.random() * totalWeight;
     let template = mConfig.issues[0];
     for (const issue of mConfig.issues) {
-      roll -= (issue.weight || 1);
+      const w = (issue.weight || 1) * ((issue.severity || 1) >= 3 && severeWeightMultiplier > 1 ? severeWeightMultiplier : 1);
+      roll -= w;
       if (roll <= 0) { template = issue; break; }
     }
 
