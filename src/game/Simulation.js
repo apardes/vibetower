@@ -756,7 +756,8 @@ export class Simulation {
 
     // Murphy's Law: bias toward severe issues when cash is low
     const ml = MURPHYS_LAW;
-    const murphysActive = day > ml.graceDays && this.gameState.money < ml.cashThreshold;
+    const cashThreshold = ml.cashThreshold[this.gameState.starRating] || ml.cashThreshold[1];
+    const murphysActive = day > ml.graceDays && this.gameState.money < cashThreshold;
     const severeMult = murphysActive ? ml.severeWeightMultiplier : 1;
 
     for (const [, room] of tower.rooms) {

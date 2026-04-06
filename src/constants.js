@@ -288,7 +288,7 @@ export const MAINTENANCE = {
 
 // Murphy's Law — severe issues become more likely when cash is low
 export const MURPHYS_LAW = {
-  cashThreshold: 10000,
+  cashThreshold: { 1: 10000, 2: 25000, 3: 50000, 4: 100000, 5: 200000 },
   graceDays: 30,
   severityThreshold: 3,
   severeWeightMultiplier: 20,
