@@ -1,5 +1,5 @@
 import { generateId } from '../utils/helpers.js';
-import { ROOM_SCHEDULES } from '../constants.js';
+import { ROOM_SCHEDULES, SATISFACTION_FACTORS } from '../constants.js';
 
 // Gaussian-ish random: average of 3 uniform randoms gives a bell curve
 function gaussRandom(min, max, peak) {
@@ -11,11 +11,13 @@ function gaussRandom(min, max, peak) {
 }
 
 export class Person {
-  constructor(homeRoom, roomType) {
+  constructor(homeRoom, roomType, starRating = 1) {
     this.id = generateId();
     this.homeRoom = homeRoom;
     this.state = 'spawning';
-    this.satisfaction = 70;
+    const comfortTable = SATISFACTION_FACTORS.baseComfort[roomType];
+    const starIndex = Math.max(0, (starRating || 1) - 1);
+    this.satisfaction = (Array.isArray(comfortTable) ? comfortTable[starIndex] : comfortTable) || 50;
     this.tenantRating = 1;   // set to building star rating at move-in
     this.movingOut = false;  // flagged when permanently leaving
     this.elevatorWaitStart = 0; // game hour when waiting began

@@ -31,12 +31,20 @@ export const DEMAND_CONFIG = {
 
 // Satisfaction
 export const SATISFACTION_FACTORS = {
-  baseComfort: { apartment: 60, office: 55, retail: 50, restaurant: 50, lobby: 70 },
-  floorBonus: { maxBonus: 10 },
+  // Per-star base comfort: index 0 = 1-star, index 4 = 5-star
+  // Higher star ratings attract pickier tenants with higher expectations
+  baseComfort: {
+    apartment:  [55, 50, 45, 40, 35],
+    office:     [50, 45, 40, 35, 30],
+    retail:     [45, 42, 38, 33, 28],
+    restaurant: [45, 42, 38, 33, 28],
+    lobby:      [70, 70, 70, 70, 70],
+  },
+  floorBonus: { maxBonus: 6 },
   elevatorAccess: { penalty: -25, threshold: 2 },
-  noisePenalty: { retail: -8, restaurant: -5 },
+  noisePenalty: { retail: -10, restaurant: -7 },
   // Wait times are scaled by ELEVATOR_TIME_SCALE before evaluation
-  elevatorWait: { graceMinutes: 3, penaltyPerMinute: 3, maxPenalty: 20 },
+  elevatorWait: { graceMinutes: 2, penaltyPerMinute: 4, maxPenalty: 25 },
 };
 
 // Move-out / Vacancy

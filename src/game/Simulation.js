@@ -720,7 +720,7 @@ export class Simulation {
 
   spawnPerson(room) {
     const { people } = this.gameState;
-    const person = new Person(room.id, room.type);
+    const person = new Person(room.id, room.type, this.gameState.starRating);
     person.tenantRating = this.gameState.starRating;
     const edges = getBuildingEdges(this.gameState.tower);
     person.position.x = Math.random() > 0.5 ? edges.left : edges.right;
@@ -790,8 +790,13 @@ export class Simulation {
 
     for (const [, room] of tower.rooms) {
       if (room.type === 'lobby' || room.type === 'elevator') continue;
+      // Look up star-indexed base comfort
+      const comfortTable = SATISFACTION_FACTORS.baseComfort[room.type];
+      const starIndex = Math.max(0, (this.gameState.starRating || 1) - 1);
+      const baseComfort = (Array.isArray(comfortTable) ? comfortTable[starIndex] : comfortTable) || 50;
+
       if (room.tenants.length === 0) {
-        room.satisfaction = SATISFACTION_FACTORS.baseComfort[room.type] || 60;
+        room.satisfaction = baseComfort;
         continue;
       }
 
@@ -801,8 +806,8 @@ export class Simulation {
         const person = people.get(personId);
         if (!person) continue;
 
-        // Base comfort for unit type
-        let sat = SATISFACTION_FACTORS.baseComfort[room.type] || 60;
+        // Base comfort for unit type (scaled by building star rating)
+        let sat = baseComfort;
 
         // Floor preference bonus
         const floorBonus = person.preferences.floorPreference * (room.gridY / 10) * SATISFACTION_FACTORS.floorBonus.maxBonus;
@@ -920,18 +925,20 @@ export class Simulation {
         // Clamp target satisfaction
         const targetSat = Math.max(0, Math.min(100, sat));
 
-        // Satisfaction drops fast but recovers at a rate based on current happiness.
-        // Happy tenants gain satisfaction faster. Unhappy tenants recover very slowly.
+        // Satisfaction drops fast but recovers with diminishing returns.
+        // Recovery slows as satisfaction rises — reaching 90+ is genuinely hard.
         if (targetSat < person.satisfaction) {
-          // Dropping — immediate
-          person.satisfaction = targetSat;
+          // Drop: fast but not instant — tenants notice problems over time
+          const dropRate = 0.8 + (person.satisfaction - targetSat) * 0.05;
+          person.satisfaction = Math.max(targetSat, person.satisfaction - dropRate);
         } else {
-          // Recovery rate scales with current satisfaction:
-          // At 0 satisfaction: 0.1 per cycle (very slow — deeply unhappy, hard to win back)
-          // At 50 satisfaction: 0.5 per cycle (moderate)
-          // At 70+ satisfaction: 1.0+ per cycle (happy tenants warm up quickly)
-          const recoveryRate = 0.05 + (person.satisfaction / 100) * 0.45;
-          person.satisfaction = Math.min(targetSat, person.satisfaction + recoveryRate);
+          // Recovery rate slows as satisfaction rises (diminishing returns):
+          // At 0 satisfaction: 0.45 per cycle (decent recovery from rock bottom)
+          // At 50 satisfaction: 0.16 per cycle
+          // At 70 satisfaction: 0.07 per cycle
+          // At 90+ satisfaction: 0.03 per cycle (slow — 5-star territory is hard)
+          const recoveryRate = 0.45 * Math.pow(1 - person.satisfaction / 100, 1.5);
+          person.satisfaction = Math.min(targetSat, person.satisfaction + Math.max(0.03, recoveryRate));
         }
 
         totalSat += person.satisfaction;
