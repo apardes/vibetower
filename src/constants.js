@@ -41,17 +41,29 @@ export const SATISFACTION_FACTORS = {
 
 // Move-out / Vacancy
 export const MOVEOUT_CONFIG = {
-  baseChance: 0.05,
-  comfortBase: 30,
-  comfortPerStar: 8,
-  dissatisfactionScale: 0.4,
-  vacancyCooldown: 2,
+  // Satisfaction threshold per star rating. Index = star rating (1-5).
+  // Room satisfaction below this triggers move-out evaluation.
+  thresholds: [0, 30, 50, 70, 80, 90],  // index 0 unused
+
+  // Tiny base chance even when satisfied (random life events)
+  baseChance: 0.005,
+
+  // Linear: moveOutChance = baseChance + (deficit/100) * maxDeficitChance
+  maxDeficitChance: 0.85,
+
   typeMultiplier: {
     apartment: 1.0,
-    office: 0.5,
+    office: 0.6,
     retail: 0.7,
     restaurant: 0.7,
   },
+
+  vacancyCooldown: 5,
+
+  // Spawn gating
+  spawnSatisfactionFloor: 25,
+  spawnSatisfactionSoftCap: 60,
+  spawnPenaltyPerPoint: 0.03,
 };
 
 // Elevator time compression — converts raw game-time waits to realistic perceived waits
@@ -151,9 +163,9 @@ export const ROOM_TYPES = {
 export const STAR_THRESHOLDS = [
   { star: 1, population: 0,    satisfaction: 0 },
   { star: 2, population: 100,  satisfaction: 50 },
-  { star: 3, population: 300,  satisfaction: 60 },
-  { star: 4, population: 500,  satisfaction: 70 },
-  { star: 5, population: 1000, satisfaction: 80 },
+  { star: 3, population: 300,  satisfaction: 70 },
+  { star: 4, population: 500,  satisfaction: 80 },
+  { star: 5, population: 1000, satisfaction: 90 },
 ];
 
 // Maintenance config per unit type

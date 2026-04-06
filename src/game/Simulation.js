@@ -60,6 +60,11 @@ export class Simulation {
       this.checkMaintenance();
     }
 
+    // Move-out checks run every 5 ticks (240 checks/day) for snappy response
+    if (this.tickCount % 5 === 0) {
+      this.checkMoveOuts(5);
+    }
+
     // Safety net: recount elevator waiting counts every 20 ticks
     if (this.tickCount % 20 === 0) {
       this.recountElevatorQueues();
@@ -197,7 +202,11 @@ export class Simulation {
   startElevatorTrip(person, destFloor, tickHours, destX) {
     const elevator = this.findNearestElevator(person.position.x, person.floor, destFloor, destX);
     if (!elevator) {
-      // No elevator available — stay in room, cancel the trip
+      // No elevator available — cancel the trip
+      if (person.movingOut) {
+        // Elevator vanished between pre-check and trip — reset, retry tomorrow
+        person.movingOut = false;
+      }
       person.state = 'in_room';
       person.isOut = false;
       person.hasLeftToday = false;
@@ -240,14 +249,12 @@ export class Simulation {
     const _bEdges = getBuildingEdges(this.gameState.tower);
     if (person.isOut && (person.position.x < _bEdges.left - 1 || person.position.x > _bEdges.right + 1)) {
       if (person.movingOut) {
-        // Permanent move-out — remove from building
+        // Already removed from room.tenants in permanentMoveOut — just delete the person
         const room = this.gameState.tower.rooms.get(person.homeRoom);
         if (room) {
-          room.tenants = room.tenants.filter(id => id !== person.id);
-          room.vacancyCooldown = MOVEOUT_CONFIG.vacancyCooldown;
-          const reason = person.satisfaction < 40 ? 'Low satisfaction' : 'Personal reasons';
-          room.logEvent('move_out', `Tenant moved out: ${reason}`, { satisfaction: Math.round(person.satisfaction) }, gt(this.gameState));
-          eventBus.emit('tenantMovedOut', { room, person, reason });
+          room.logEvent('move_out', `Tenant left the building`,
+            { satisfaction: Math.round(person.satisfaction) }, gt(this.gameState));
+          eventBus.emit('tenantMovedOut', { room, person, reason: 'Low satisfaction' });
         }
         this.gameState.people.delete(person.id);
         return;
@@ -437,7 +444,6 @@ export class Simulation {
   onNewDay() {
     this.economy.collectRent();
     this.starRating.evaluate();
-    this.checkMoveOuts();
 
     // Decrement vacancy cooldowns
     for (const [, room] of this.gameState.tower.rooms) {
@@ -490,34 +496,74 @@ export class Simulation {
     }
   }
 
-  checkMoveOuts() {
+  checkMoveOuts(satInterval) {
     const { tower, people } = this.gameState;
     const cfg = MOVEOUT_CONFIG;
+    const ticksPerDay = (24 / BASE_TICK_HOURS);
+    const checksPerDay = ticksPerDay / satInterval;
 
-    for (const [, person] of people) {
-      if (person.hidden || person.movingOut) continue;
-      if (person.state !== 'in_room') continue;
+    for (const [, room] of tower.rooms) {
+      if (room.type === 'elevator' || room.type === 'lobby') continue;
+      if (room.tenants.length === 0) continue;
 
-      const room = tower.rooms.get(person.homeRoom);
-      if (!room) continue;
+      // Use the tenants' own rating to determine their threshold.
+      // All tenants in a room share the same rating (moved in at same star level).
+      const firstPerson = people.get(room.tenants[0]);
+      if (!firstPerson) continue;
+      const tenantRating = Math.min(Math.max(firstPerson.tenantRating, 1), 5);
+      const threshold = cfg.thresholds[tenantRating];
 
-      const comfortThreshold = cfg.comfortBase + person.tenantRating * cfg.comfortPerStar;
+      let dailyChance = cfg.baseChance;
 
-      let moveOutChance = cfg.baseChance;
+      if (room.satisfaction < threshold) {
+        // Each rating has a band — tenants are gone by the bottom, not by 0
+        // Star 1: 30→0, Star 2: 50→30, Star 3: 70→55, Star 4: 80→69, Star 5: 90→79
+        const goneBy = [0, 0, 30, 55, 69, 79];
+        const range = threshold - goneBy[tenantRating];
+        const deficitRatio = Math.min(1, (threshold - room.satisfaction) / Math.max(range, 1));
 
-      if (person.satisfaction < comfortThreshold) {
-        const deficit = comfortThreshold - person.satisfaction;
-        let bonus = (deficit / 100) * cfg.dissatisfactionScale;
-        const ratingMult = 0.5 + person.tenantRating * 0.2;
-        bonus *= ratingMult;
-        const typeMult = cfg.typeMultiplier[room.type] || 1.0;
-        bonus *= typeMult;
-        moveOutChance += bonus;
+        const floor = Math.min(0.95, 0.30 + (tenantRating - 1) * 0.15);
+        const ceiling = 0.95;
+        let bonus = floor + deficitRatio * (ceiling - floor);
+        bonus *= (cfg.typeMultiplier[room.type] || 1.0);
+        dailyChance += bonus;
       }
 
-      if (Math.random() < moveOutChance) {
+      // Scale to per-check: 1 - (1 - daily)^(1/checksPerDay)
+      const perCheckChance = 1 - Math.pow(1 - Math.min(1, dailyChance), 1 / checksPerDay);
+
+      if (Math.random() < perCheckChance) {
+        this.moveOutRoom(room);
+      }
+    }
+  }
+
+  moveOutRoom(room) {
+    const { people } = this.gameState;
+    const tenantIds = [...room.tenants];
+    let anyRemoved = false;
+
+    for (const personId of tenantIds) {
+      const person = people.get(personId);
+      if (!person) {
+        room.tenants = room.tenants.filter(id => id !== personId);
+        anyRemoved = true;
+        continue;
+      }
+      if (person.movingOut) continue;
+
+      if (person.hidden) {
+        // Already off-screen — direct removal
+        this.removeTenant(person, room);
+        anyRemoved = true;
+      } else if (person.state === 'in_room') {
         this.permanentMoveOut(person, room);
       }
+      // In-transit people: skip — caught next day
+    }
+
+    if (anyRemoved && room.tenants.length === 0) {
+      room.vacancyCooldown = MOVEOUT_CONFIG.vacancyCooldown;
     }
   }
 
@@ -557,18 +603,43 @@ export class Simulation {
   }
 
   permanentMoveOut(person, room) {
-    person.movingOut = true;
-    person.isOut = true;
-    person.position.y = room.gridY + 0.5;
-
     if (room.gridY === 0) {
+      // Ground floor — walk off
+      person.movingOut = true;
+      person.isOut = true;
+      person.hidden = false;
+      person.position.y = 0.5;
       person.state = 'walking';
       const _edges = getBuildingEdges(this.gameState.tower);
       person.targetX = Math.random() > 0.5 ? _edges.left - 2 : _edges.right + 2;
       person.targetFloor = -1;
+      // Remove from room immediately — lease is broken
+      room.tenants = room.tenants.filter(id => id !== person.id);
+      if (room.tenants.length === 0) room.vacancyCooldown = MOVEOUT_CONFIG.vacancyCooldown;
     } else {
-      this.startElevatorTrip(person, 0, 0);
+      // Upper floor — need elevator
+      const elevator = this.findNearestElevator(person.position.x, room.gridY, 0, undefined);
+      if (elevator) {
+        person.movingOut = true;
+        person.isOut = true;
+        person.hidden = false;
+        person.position.y = room.gridY + 0.5;
+        this.startElevatorTrip(person, 0, 0);
+        // Remove from room immediately — lease is broken
+        room.tenants = room.tenants.filter(id => id !== person.id);
+        if (room.tenants.length === 0) room.vacancyCooldown = MOVEOUT_CONFIG.vacancyCooldown;
+      }
+      // No elevator → stay stuck. Re-evaluated next day.
     }
+  }
+
+  removeTenant(person, room) {
+    room.tenants = room.tenants.filter(id => id !== person.id);
+    const reason = person.satisfaction < 40 ? 'Low satisfaction' : 'Personal reasons';
+    room.logEvent('move_out', `Tenant moved out: ${reason}`,
+      { satisfaction: Math.round(person.satisfaction) }, gt(this.gameState));
+    eventBus.emit('tenantMovedOut', { room, person, reason });
+    this.gameState.people.delete(person.id);
   }
 
   // Called every tick — trickle in new tenants and handle returns
@@ -581,6 +652,16 @@ export class Simulation {
   // Demand varies by unit type, star rating, and building conditions.
   trySpawnNewTenants(hour) {
     if (hour < 6 || hour > 22) return;
+
+    // Satisfaction gate — don't attract tenants to miserable buildings
+    const avgSat = this.gameState.stats.averageSatisfaction;
+    if (avgSat < MOVEOUT_CONFIG.spawnSatisfactionFloor) return;
+
+    let satisfactionMult = 1.0;
+    if (avgSat < MOVEOUT_CONFIG.spawnSatisfactionSoftCap) {
+      const penalty = MOVEOUT_CONFIG.spawnSatisfactionSoftCap - avgSat;
+      satisfactionMult = Math.max(0.05, 1 - penalty * MOVEOUT_CONFIG.spawnPenaltyPerPoint);
+    }
 
     const { tower } = this.gameState;
     const star = this.gameState.starRating;
@@ -622,9 +703,9 @@ export class Simulation {
       const hasElevator = room.gridY <= 2 || this.hasElevatorAccess(room.gridY);
       const elevatorBonus = (room.gridY > 0 && hasElevator) ? cfg.factors.elevatorAccess : 0;
 
-      // Final spawn chance
+      // Final spawn chance — gated by satisfaction
       const chance = Math.max(0.0005, Math.min(0.01,
-        cfg.baseChancePerTick * starMult * (1 + buildingBonus + elevatorBonus)
+        cfg.baseChancePerTick * starMult * (1 + buildingBonus + elevatorBonus) * satisfactionMult
       ));
 
       if (Math.random() < chance) {
@@ -686,21 +767,6 @@ export class Simulation {
         person.position.y = 0.5;
         person.floor = 0;
         person.state = 'spawning';
-      }
-    }
-  }
-
-  evictUnhappy() {
-    const { tower, people } = this.gameState;
-
-    for (const [, room] of tower.rooms) {
-      // Only evict if satisfaction is very low for extended time
-      if (room.satisfaction < 15) {
-        for (const personId of room.tenants) {
-          people.delete(personId);
-        }
-        room.tenants = [];
-        room.state = 'empty';
       }
     }
   }
@@ -776,7 +842,7 @@ export class Simulation {
         if (room.maintenanceIssue) {
           const sev = room.maintenanceIssue.severity || 1;
           const daysUnresolved = Math.max(0, day - room.maintenanceStartDay);
-          const penalty = (sev * -4 * (1 + daysUnresolved * 0.8));
+          const penalty = (sev * -4 * (1 + daysUnresolved * sev * 0.1));
           sat += penalty;
         }
 
@@ -888,14 +954,14 @@ export class Simulation {
     stats.totalPopulation = people.size;
 
     let totalSat = 0;
-    let roomCount = 0;
+    let occupiedCount = 0;
     for (const [, room] of tower.rooms) {
-      if (room.type !== 'lobby' && room.type !== 'elevator') {
+      if (room.type !== 'lobby' && room.type !== 'elevator' && room.tenants.length > 0) {
         totalSat += room.satisfaction;
-        roomCount++;
+        occupiedCount++;
       }
     }
-    stats.averageSatisfaction = roomCount > 0 ? totalSat / roomCount : 100;
+    stats.averageSatisfaction = occupiedCount > 0 ? totalSat / occupiedCount : 100;
     eventBus.emit('statsChanged', stats);
   }
 
