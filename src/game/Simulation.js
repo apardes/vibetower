@@ -53,20 +53,25 @@ export class Simulation {
     this.updateElevators(tickHours);
     this.sky.setTime(time.hour);
 
-    const satInterval = Math.max(10, Math.min(40, Math.floor(this.gameState.people.size / 25)));
+    // Scale update intervals by speed so game systems run proportionally faster
+    const speed = time.speed || 1;
+    const baseSatInterval = Math.max(10, Math.min(40, Math.floor(this.gameState.people.size / 25)));
+    const satInterval = Math.max(1, Math.round(baseSatInterval / speed));
     if (this.tickCount % satInterval === 0) {
       this.updateSatisfaction();
       this.updateStats();
       this.checkMaintenance();
     }
 
-    // Move-out checks run every 5 ticks (240 checks/day) for snappy response
-    if (this.tickCount % 5 === 0) {
-      this.checkMoveOuts(5);
+    // Move-out checks scale with speed
+    const moveOutInterval = Math.max(1, Math.round(5 / speed));
+    if (this.tickCount % moveOutInterval === 0) {
+      this.checkMoveOuts(moveOutInterval);
     }
 
     // Safety net: recount elevator waiting counts every 20 ticks
-    if (this.tickCount % 20 === 0) {
+    const queueInterval = Math.max(1, Math.round(20 / speed));
+    if (this.tickCount % queueInterval === 0) {
       this.recountElevatorQueues();
     }
 
@@ -104,7 +109,7 @@ export class Simulation {
 
         case 'waiting_elevator':
           // Periodically check if another elevator has a shorter queue
-          if (Math.random() < 0.02) { // ~once per 2.5 seconds real time
+          if (Math.random() < 0.02 * (this.gameState.time.speed || 1)) {
             this.reconsiderElevator(person);
           }
           break;
@@ -327,7 +332,8 @@ export class Simulation {
     const { tower, people } = this.gameState;
 
     // Ensure every waiting/riding person's floor is requested (defensive retry, batched)
-    if (this.tickCount % 10 === 0) {
+    const retryInterval = Math.max(1, Math.round(10 / (this.gameState.time.speed || 1)));
+    if (this.tickCount % retryInterval === 0) {
       for (const [, person] of people) {
         if (person.state === 'waiting_elevator' && person.elevatorId) {
           const elev = tower.elevators.get(person.elevatorId);
@@ -499,7 +505,8 @@ export class Simulation {
   checkMoveOuts(satInterval) {
     const { tower, people } = this.gameState;
     const cfg = MOVEOUT_CONFIG;
-    const ticksPerDay = (24 / BASE_TICK_HOURS);
+    const speed = this.gameState.time.speed || 1;
+    const ticksPerDay = 24 / (BASE_TICK_HOURS * speed);
     const checksPerDay = ticksPerDay / satInterval;
 
     for (const [, room] of tower.rooms) {
@@ -704,8 +711,9 @@ export class Simulation {
       const elevatorBonus = (room.gridY > 0 && hasElevator) ? cfg.factors.elevatorAccess : 0;
 
       // Final spawn chance — gated by satisfaction
+      const speed = this.gameState.time.speed || 1;
       const chance = Math.max(0.0005, Math.min(0.01,
-        cfg.baseChancePerTick * starMult * (1 + buildingBonus + elevatorBonus) * satisfactionMult
+        cfg.baseChancePerTick * speed * starMult * (1 + buildingBonus + elevatorBonus) * satisfactionMult
       ));
 
       if (Math.random() < chance) {
