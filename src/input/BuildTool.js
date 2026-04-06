@@ -168,6 +168,11 @@ export class BuildTool {
     const floors = maxY - minY + 1;
     if (this.gameState.money < ROOM_TYPES.elevator.costPerFloor * floors) return false;
 
+    // If bottom of elevator is above ground, require support below
+    if (minY > 0) {
+      if (!this.tower.isCellOccupied(gridX, minY - 1)) return false;
+    }
+
     // Check all cells are free
     for (let y = minY; y <= maxY; y++) {
       if (this.tower.grid[y][gridX] !== null) return false;
