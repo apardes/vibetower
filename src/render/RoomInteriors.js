@@ -2,10 +2,18 @@ import * as THREE from 'three';
 
 // Room interiors use MeshBasicMaterial — they're self-lit (cross-section view).
 // Scene lighting only affects exterior/ground, not room contents.
-const mat = (color, opts = {}) => new THREE.MeshBasicMaterial({
-  color,
-  ...opts,
-});
+// Material pool: share materials by color to reduce memory and draw calls.
+const materialPool = new Map();
+const mat = (color, opts = {}) => {
+  // Materials with extra opts (transparent, etc.) can't be pooled
+  const hasOpts = Object.keys(opts).length > 0;
+  if (hasOpts) return new THREE.MeshBasicMaterial({ color, ...opts });
+  const key = typeof color === 'string' ? color : String(color);
+  if (!materialPool.has(key)) {
+    materialPool.set(key, new THREE.MeshBasicMaterial({ color }));
+  }
+  return materialPool.get(key);
+};
 
 function plane(w, h, color, opts) {
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat(color, opts));

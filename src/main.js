@@ -63,13 +63,18 @@ eventBus.on('roomPlaced', (room) => {
 });
 
 // Per-frame render updates (lighting, animations, effects)
+let lastInteriorUpdate = 0;
 renderer.onUpdate = (delta) => {
   const elapsed = renderer.clock.getElapsedTime();
   lighting.update(gameState.time.hour);
   renderer.setNightBloom(lighting.nightFactor);
   sky.update(delta, gameState.time.hour, lighting.nightFactor, renderer.camera.position.x);
   weather.update(delta, gameState.time.hour, lighting);
-  towerRenderer.updateRoomInteriors(gameState.time.hour, lighting.nightFactor, elapsed);
+  // Throttle interior updates to ~10fps (only neon sign pulse needs this)
+  if (elapsed - lastInteriorUpdate > 0.1) {
+    towerRenderer.updateRoomInteriors(gameState.time.hour, lighting.nightFactor, elapsed);
+    lastInteriorUpdate = elapsed;
+  }
   towerRenderer.updateAnimations(delta);
   elevatorRenderer.animateCabs(delta);
   personRenderer.animate(delta, elapsed, gameState.people);

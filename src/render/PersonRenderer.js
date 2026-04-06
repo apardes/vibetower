@@ -20,6 +20,18 @@ const CLOTHING = {
   static:    ['#777777', '#888888', '#666666', '#999999', '#555555'],
 };
 
+const HAIR_COLORS = ['#1a1a1a', '#3d2b1f', '#8b6914', '#c44a2f', '#555555'];
+
+// Shared material pool — reuse across all people
+const personMatPool = new Map();
+function getPersonMat(color, roughness = 0.9) {
+  const key = color + '_' + roughness;
+  if (!personMatPool.has(key)) {
+    personMatPool.set(key, new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 }));
+  }
+  return personMatPool.get(key);
+}
+
 // Build an articulated person as a Group with separate limbs
 function createPersonFigure(hash, role) {
   const group = new THREE.Group();
@@ -29,14 +41,11 @@ function createPersonFigure(hash, role) {
   const shirtColor = clothes[hash % clothes.length];
   const pantsColor = clothes[(hash + 2) % clothes.length];
 
-  const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.9, metalness: 0 });
-  const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.8, metalness: 0 });
-  const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.85, metalness: 0 });
-  const shoeMat = new THREE.MeshStandardMaterial({ color: '#222222', roughness: 0.9, metalness: 0 });
-  const hairMat = new THREE.MeshStandardMaterial({
-    color: ['#1a1a1a', '#3d2b1f', '#8b6914', '#c44a2f', '#555555'][hash % 5],
-    roughness: 0.9, metalness: 0
-  });
+  const skinMat = getPersonMat(skinColor, 0.9);
+  const shirtMat = getPersonMat(shirtColor, 0.8);
+  const pantsMat = getPersonMat(pantsColor, 0.85);
+  const shoeMat = getPersonMat('#222222', 0.9);
+  const hairMat = getPersonMat(HAIR_COLORS[hash % 5], 0.9);
 
   // Head (circle-ish) — 0.12 wide
   const head = new THREE.Mesh(new THREE.CircleGeometry(0.06, 8), skinMat);

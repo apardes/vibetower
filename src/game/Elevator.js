@@ -15,6 +15,7 @@ export class Elevator {
     this.passengers = new Set();
     this.requestedFloors = new Set();
     this.capacity = 12;
+    this.waitingCount = 0; // cached count of people waiting for this elevator
 
     this.moveTime = 0.02;    // game-hours to travel one floor (~1.2 min)
     this.baseStopTime = 0.08; // base stop time — must survive at least 1 tick at 3x speed (0.06)

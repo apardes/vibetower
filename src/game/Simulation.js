@@ -53,10 +53,16 @@ export class Simulation {
     this.updateElevators(tickHours);
     this.sky.setTime(time.hour);
 
-    if (this.tickCount % 10 === 0) {
+    const satInterval = Math.max(10, Math.min(40, Math.floor(this.gameState.people.size / 25)));
+    if (this.tickCount % satInterval === 0) {
       this.updateSatisfaction();
       this.updateStats();
       this.checkMaintenance();
+    }
+
+    // Safety net: recount elevator waiting counts every 20 ticks
+    if (this.tickCount % 20 === 0) {
+      this.recountElevatorQueues();
     }
 
     eventBus.emit('tick', this.gameState);
@@ -224,6 +230,7 @@ export class Simulation {
       if (elevator) {
         person.state = 'waiting_elevator';
         person.elevatorWaitStart = this.gameState.time.hour + (this.gameState.time.day - 1) * 24;
+        elevator.waitingCount++;
         elevator.requestFloor(person.floor);
         return;
       }
@@ -284,7 +291,6 @@ export class Simulation {
     let best = null;
     let bestScore = Infinity;
     const tower = this.gameState.tower;
-    const { people } = this.gameState;
 
     for (const [, elevator] of tower.elevators) {
       if (fromFloor >= elevator.minFloor && fromFloor <= elevator.maxFloor &&
@@ -293,15 +299,9 @@ export class Simulation {
         if (!tower.hasFloorPath(fromFloor, fromX, elevX)) continue;
         if (destX !== undefined && !tower.hasFloorPath(targetFloor, elevX, destX)) continue;
 
-        // Count people waiting for this elevator
-        let waitingCount = 0;
-        for (const [, p] of people) {
-          if (p.state === 'waiting_elevator' && p.elevatorId === elevator.id) waitingCount++;
-        }
-
-        // Score: distance + queue penalty (each waiting person = 2 units of distance)
+        // Score: distance + queue penalty (cached count, O(1))
         const dist = Math.abs(elevX - fromX);
-        const score = dist + waitingCount * 2;
+        const score = dist + elevator.waitingCount * 2;
 
         if (score < bestScore) {
           bestScore = score;
@@ -319,18 +319,20 @@ export class Simulation {
   updateElevators(tickHours) {
     const { tower, people } = this.gameState;
 
-    // Ensure every waiting person's floor is requested (defensive retry)
-    for (const [, person] of people) {
-      if (person.state === 'waiting_elevator' && person.elevatorId) {
-        const elev = tower.elevators.get(person.elevatorId);
-        if (elev && !elev.requestedFloors.has(person.floor)) {
-          elev.requestFloor(person.floor);
+    // Ensure every waiting/riding person's floor is requested (defensive retry, batched)
+    if (this.tickCount % 10 === 0) {
+      for (const [, person] of people) {
+        if (person.state === 'waiting_elevator' && person.elevatorId) {
+          const elev = tower.elevators.get(person.elevatorId);
+          if (elev && !elev.requestedFloors.has(person.floor)) {
+            elev.requestFloor(person.floor);
+          }
         }
-      }
-      if (person.state === 'in_elevator' && person.elevatorId) {
-        const elev = tower.elevators.get(person.elevatorId);
-        if (elev && !elev.requestedFloors.has(person.targetFloor) && person.targetFloor >= 0) {
-          elev.requestFloor(person.targetFloor);
+        if (person.state === 'in_elevator' && person.elevatorId) {
+          const elev = tower.elevators.get(person.elevatorId);
+          if (elev && !elev.requestedFloors.has(person.targetFloor) && person.targetFloor >= 0) {
+            elev.requestFloor(person.targetFloor);
+          }
         }
       }
     }
@@ -399,6 +401,7 @@ export class Simulation {
             elevator.passengers.size < elevator.capacity) {
           elevator.passengers.add(person.id);
           person.state = 'in_elevator';
+          elevator.waitingCount = Math.max(0, elevator.waitingCount - 1);
           // Record how long they waited — scaled by time compression and game speed
           const now = this.gameState.time.hour + (this.gameState.time.day - 1) * 24;
           const rawWait = Math.max(0, now - person.elevatorWaitStart);
@@ -518,19 +521,26 @@ export class Simulation {
     }
   }
 
+  recountElevatorQueues() {
+    const { tower, people } = this.gameState;
+    for (const [, elev] of tower.elevators) {
+      elev.waitingCount = 0;
+    }
+    for (const [, person] of people) {
+      if (person.state === 'waiting_elevator' && person.elevatorId) {
+        const elev = tower.elevators.get(person.elevatorId);
+        if (elev) elev.waitingCount++;
+      }
+    }
+  }
+
   reconsiderElevator(person) {
     if (!person.elevatorId || person.targetFloor < 0) return;
     const currentElev = this.gameState.tower.elevators.get(person.elevatorId);
     if (!currentElev) return;
 
-    // Count people waiting for current elevator
-    let currentQueue = 0;
-    for (const [, p] of this.gameState.people) {
-      if (p.state === 'waiting_elevator' && p.elevatorId === currentElev.id) currentQueue++;
-    }
-
-    // Only reconsider if queue is long enough to bother
-    if (currentQueue < 3) return;
+    // Use cached queue count
+    if (currentElev.waitingCount < 3) return;
 
     // Find a better elevator
     const homeRoom = this.gameState.tower.rooms.get(person.homeRoom);
@@ -538,7 +548,8 @@ export class Simulation {
     const better = this.findNearestElevator(person.position.x, person.floor, person.targetFloor, destX);
 
     if (better && better.id !== currentElev.id) {
-      // Switch — walk to the new elevator
+      // Switch — decrement old, walk to new (increment happens on arrival)
+      currentElev.waitingCount = Math.max(0, currentElev.waitingCount - 1);
       person.elevatorId = better.id;
       person.targetX = better.gridX + 0.5;
       person.state = 'walking';
