@@ -139,6 +139,14 @@ export const ROOM_TYPES = {
     unlockStar: 1,
     maintenanceImpact: { target: 'subset', selection: 'proximity', reach: 0.3, intensity: 0.25 },
     amenityEffect: { target: 'subset', selection: 'proximity', reach: 0.4, boostMin: 2, boostMax: 6, appealsTo: ['apartment'] },
+    visitConfig: {
+      visitorCapacity: 6,
+      visitDuration: [1.0, 2.0],
+      dailyVisitsPerPerson: [2, 4],
+      operatingHours: [9, 21],
+      satisfactionBoost: [3, 8],
+      appealsTo: ['apartment'],
+    },
   },
   restaurant: {
     name: 'Restaurant',
@@ -151,6 +159,14 @@ export const ROOM_TYPES = {
     unlockStar: 1,
     maintenanceImpact: { target: 'subset', selection: 'proximity', reach: 0.4, intensity: 0.3 },
     amenityEffect: { target: 'subset', selection: 'proximity', reach: 0.5, boostMin: 3, boostMax: 8, appealsTo: ['apartment', 'office'] },
+    visitConfig: {
+      visitorCapacity: 10,
+      visitDuration: [2.0, 4.0],
+      dailyVisitsPerPerson: [0, 1],
+      operatingHours: [10, 23],
+      satisfactionBoost: [5, 12],
+      appealsTo: ['apartment', 'office'],
+    },
   },
   elevator: {
     name: 'Elevator',

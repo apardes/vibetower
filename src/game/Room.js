@@ -18,6 +18,7 @@ export class Room {
     this.color = def.color;
     this.name = def.name;
     this.tenants = [];
+    this.visitors = [];  // person IDs currently visiting this amenity (not tenants)
     this.satisfaction = 100;
     this.state = 'empty'; // 'empty', 'occupied', 'damaged'
 

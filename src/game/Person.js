@@ -40,6 +40,13 @@ export class Person {
     this.hasLeftToday = false;   // prevents re-triggering leave
     this.hasReturnedToday = false; // prevents re-triggering return
 
+    // Amenity visit state
+    this.visitingRoom = null;          // room ID if currently at an amenity
+    this.visitEndHour = 0;             // game-hour when current visit ends
+    this.plannedVisits = [];           // [{ hour }] generated each day
+    this.completedVisitsToday = 0;
+    this.visitSatisfactionBonus = 0;   // accumulated bonus from today's visits
+
     // Generate personal schedule based on room type
     this.schedule = this.generateSchedule(roomType);
   }
@@ -92,5 +99,8 @@ export class Person {
   resetDay() {
     this.hasLeftToday = false;
     this.hasReturnedToday = false;
+    this.completedVisitsToday = 0;
+    this.visitSatisfactionBonus = 0;
+    this.plannedVisits = [];
   }
 }

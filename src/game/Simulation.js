@@ -30,6 +30,30 @@ export class Simulation {
     this.starRating = new StarRating(gameState);
     this.tickCount = 0;
 
+    // Clean up visitors when an amenity room is demolished
+    eventBus.on('roomRemoved', (room) => {
+      if (room.visitors && room.visitors.length > 0) {
+        for (const personId of room.visitors) {
+          const person = gameState.people.get(personId);
+          if (person && person.visitingRoom === room.id) {
+            person.visitingRoom = null;
+            person.visitEndHour = 0;
+            // Route them back home
+            const homeRoom = gameState.tower.rooms.get(person.homeRoom);
+            if (homeRoom && person.state === 'in_room') {
+              if (person.floor === homeRoom.gridY) {
+                person.state = 'walking';
+                person.targetX = homeRoom.gridX + person.homeOffset * homeRoom.width;
+                person.targetFloor = -1;
+              } else {
+                this.startElevatorTrip(person, homeRoom.gridY, 0, homeRoom.gridX + homeRoom.width / 2);
+              }
+            }
+          }
+        }
+      }
+    });
+
     this.intervalId = setInterval(() => this.tick(), 1000 / TICKS_PER_SECOND);
   }
 
@@ -150,8 +174,32 @@ export class Simulation {
     const sched = person.schedule;
     if (!sched || sched.type === 'static') return;
 
+    // If visiting an amenity, check if visit is over (before floor guard —
+    // person may be on a different floor than their home room)
+    if (person.visitingRoom) {
+      // Handle midnight wrap: if visitEndHour >= 24, the hour has reset to 0+
+      const visitOver = person.visitEndHour >= 24
+        ? (hour >= person.visitEndHour - 24)
+        : (hour >= person.visitEndHour);
+      if (visitOver) {
+        this.endAmenityVisit(person);
+      }
+      return;
+    }
+
     // Don't process schedule if person isn't actually on their room's floor
     if (person.floor !== homeRoom.gridY) return;
+
+    // Check if it's time for a planned amenity visit
+    if (person.plannedVisits.length > 0 && !person.isOut) {
+      const nextVisit = person.plannedVisits[0];
+      if (hour >= nextVisit.hour) {
+        if (this.startAmenityVisit(person, homeRoom)) {
+          return;
+        }
+        person.plannedVisits.shift(); // failed, skip this visit
+      }
+    }
 
     if (sched.type === 'apartment') {
       // Time to leave for work?
@@ -203,6 +251,108 @@ export class Simulation {
     }
   }
 
+  // ==================
+  // Amenity visits
+  // ==================
+
+  startAmenityVisit(person, homeRoom) {
+    const amenityRoom = this.findAvailableAmenity(person, homeRoom);
+    if (!amenityRoom) return false;
+
+    person.plannedVisits.shift();
+    person.visitingRoom = amenityRoom.id;
+
+    const vc = ROOM_TYPES[amenityRoom.type].visitConfig;
+    const duration = vc.visitDuration[0] + Math.random() * (vc.visitDuration[1] - vc.visitDuration[0]);
+    person.visitEndHour = this.gameState.time.hour + duration;
+
+    amenityRoom.visitors.push(person.id);
+
+    // Route to amenity room
+    if (amenityRoom.gridY === person.floor) {
+      person.state = 'walking';
+      person.targetX = amenityRoom.gridX + Math.random() * amenityRoom.width;
+      person.targetFloor = -1;
+      person.elevatorId = null;
+    } else {
+      this.startElevatorTrip(person, amenityRoom.gridY, 0, amenityRoom.gridX + amenityRoom.width / 2);
+    }
+    return true;
+  }
+
+  findAvailableAmenity(person, homeRoom) {
+    const { tower, time } = this.gameState;
+    let best = null;
+    let bestScore = Infinity;
+
+    for (const [, room] of tower.rooms) {
+      const def = ROOM_TYPES[room.type];
+      if (!def || !def.visitConfig) continue;
+      if (!def.visitConfig.appealsTo.includes(homeRoom.type)) continue;
+
+      // Check operating hours — also ensure visit can finish before closing/midnight
+      const vc = def.visitConfig;
+      if (time.hour < vc.operatingHours[0]) continue;
+      if (time.hour + vc.visitDuration[0] > Math.min(vc.operatingHours[1], 23.5)) continue;
+
+      // Check visitor capacity
+      if (room.visitors.length >= def.visitConfig.visitorCapacity) continue;
+
+      // Check reachability
+      if (room.gridY !== homeRoom.gridY) {
+        if (!this.hasElevatorAccess(room.gridY) || !this.hasElevatorAccess(homeRoom.gridY)) continue;
+      }
+
+      // Score: prefer closer amenities, with randomness to spread visitors
+      const floorDist = Math.abs(room.gridY - homeRoom.gridY);
+      const xDist = Math.abs((room.gridX + room.width / 2) - (homeRoom.gridX + homeRoom.width / 2));
+      const score = floorDist * 3 + xDist + Math.random() * 2;
+
+      if (score < bestScore) {
+        bestScore = score;
+        best = room;
+      }
+    }
+
+    return best;
+  }
+
+  endAmenityVisit(person) {
+    const { tower } = this.gameState;
+    const amenityRoom = tower.rooms.get(person.visitingRoom);
+
+    // Remove from amenity visitor list
+    if (amenityRoom) {
+      amenityRoom.visitors = amenityRoom.visitors.filter(id => id !== person.id);
+    }
+
+    // Apply satisfaction boost
+    const def = amenityRoom ? ROOM_TYPES[amenityRoom.type] : null;
+    if (def && def.visitConfig) {
+      const vc = def.visitConfig;
+      const boost = vc.satisfactionBoost[0] +
+        person.preferences.amenitySensitivity * (vc.satisfactionBoost[1] - vc.satisfactionBoost[0]);
+      person.visitSatisfactionBonus += boost;
+    }
+
+    person.completedVisitsToday++;
+    person.visitingRoom = null;
+    person.visitEndHour = 0;
+
+    // Route back to home room
+    const homeRoom = tower.rooms.get(person.homeRoom);
+    if (!homeRoom) return;
+
+    if (person.floor === homeRoom.gridY) {
+      person.state = 'walking';
+      person.targetX = homeRoom.gridX + person.homeOffset * homeRoom.width;
+      person.targetFloor = -1;
+      person.elevatorId = null;
+    } else {
+      this.startElevatorTrip(person, homeRoom.gridY, 0, homeRoom.gridX + homeRoom.width / 2);
+    }
+  }
+
   // Start a trip: walk to elevator, queue up
   startElevatorTrip(person, destFloor, tickHours, destX) {
     const elevator = this.findNearestElevator(person.position.x, person.floor, destFloor, destX);
@@ -211,6 +361,13 @@ export class Simulation {
       if (person.movingOut) {
         // Elevator vanished between pre-check and trip — reset, retry tomorrow
         person.movingOut = false;
+      }
+      // Cancel any in-progress amenity visit
+      if (person.visitingRoom) {
+        const aRoom = this.gameState.tower.rooms.get(person.visitingRoom);
+        if (aRoom) aRoom.visitors = aRoom.visitors.filter(id => id !== person.id);
+        person.visitingRoom = null;
+        person.visitEndHour = 0;
       }
       person.state = 'in_room';
       person.isOut = false;
@@ -269,6 +426,23 @@ export class Simulation {
       person.floor = 0;
       person.hidden = true;
       return;
+    }
+
+    // Arriving at an amenity room?
+    if (person.visitingRoom) {
+      const amenityRoom = this.gameState.tower.rooms.get(person.visitingRoom);
+      if (amenityRoom && person.floor === amenityRoom.gridY) {
+        this.arriveAtRoom(person, amenityRoom);
+        return;
+      }
+      // Wrong floor — take elevator (shouldn't normally happen, but defensive)
+      if (amenityRoom) {
+        this.startElevatorTrip(person, amenityRoom.gridY, 0, amenityRoom.gridX + amenityRoom.width / 2);
+        return;
+      }
+      // Amenity gone — clear visit and fall through to home room
+      person.visitingRoom = null;
+      person.visitEndHour = 0;
     }
 
     // Otherwise we arrived at our room
@@ -384,15 +558,25 @@ export class Simulation {
           person.position.y = stoppedFloor + 0.5;
           person.elevatorId = null;
 
-          // Walk to home room if on the right floor AND there's a walkable path
+          // Walk to destination: amenity visit, home room, or outside
           const homeRoom = tower.rooms.get(person.homeRoom);
-          if (homeRoom && homeRoom.gridY === stoppedFloor &&
+          if (person.visitingRoom) {
+            // Walking to amenity room
+            const amenityRoom = tower.rooms.get(person.visitingRoom);
+            if (amenityRoom && amenityRoom.gridY === stoppedFloor) {
+              person.targetX = amenityRoom.gridX + Math.random() * amenityRoom.width;
+            } else if (homeRoom && homeRoom.gridY === stoppedFloor) {
+              person.targetX = homeRoom.gridX + person.homeOffset * homeRoom.width;
+            } else {
+              person.targetX = person.position.x + (Math.random() > 0.5 ? 3 : -3);
+            }
+          } else if (homeRoom && homeRoom.gridY === stoppedFloor &&
               tower.hasFloorPath(stoppedFloor, person.position.x, homeRoom.gridX + homeRoom.width / 2)) {
             person.targetX = homeRoom.gridX + person.homeOffset * homeRoom.width;
           } else if (stoppedFloor === 0 && person.isOut) {
             // Going outside
             const _edges = getBuildingEdges(this.gameState.tower);
-      person.targetX = Math.random() > 0.5 ? _edges.left - 2 : _edges.right + 2;
+            person.targetX = Math.random() > 0.5 ? _edges.left - 2 : _edges.right + 2;
           } else {
             person.targetX = person.position.x + (Math.random() > 0.5 ? 3 : -3);
           }
@@ -461,12 +645,109 @@ export class Simulation {
     hist.push({ day: this.gameState.time.day, satisfaction: Math.round(this.gameState.stats.averageSatisfaction) });
     if (hist.length > 30) hist.shift();
 
-    // Reset daily flags for all people
+    // Clean up stale visit state and reset daily flags
+    for (const [, room] of this.gameState.tower.rooms) {
+      room.visitors = [];
+    }
     for (const [, person] of this.gameState.people) {
+      if (person.visitingRoom) {
+        person.visitingRoom = null;
+        person.visitEndHour = 0;
+      }
       person.resetDay();
     }
 
+    this.generateVisitSchedules();
     eventBus.emit('newDay', this.gameState.time.day);
+  }
+
+  generateVisitSchedules() {
+    const { tower, people } = this.gameState;
+
+    // Collect amenity rooms with visitConfig
+    const amenityRooms = [];
+    for (const [, room] of tower.rooms) {
+      const def = ROOM_TYPES[room.type];
+      if (def && def.visitConfig) amenityRooms.push(room);
+    }
+    if (amenityRooms.length === 0) return;
+
+    // Build lookup: which amenity types appeal to which home room types
+    const appealMap = {}; // homeType -> [visitConfig, ...]
+    for (const aRoom of amenityRooms) {
+      const vc = ROOM_TYPES[aRoom.type].visitConfig;
+      for (const homeType of vc.appealsTo) {
+        if (!appealMap[homeType]) appealMap[homeType] = [];
+        // Only add unique visit configs (by amenity type)
+        if (!appealMap[homeType].some(c => c === vc)) {
+          appealMap[homeType].push(vc);
+        }
+      }
+    }
+
+    for (const [, person] of people) {
+      const homeRoom = tower.rooms.get(person.homeRoom);
+      if (!homeRoom) continue;
+
+      const configs = appealMap[homeRoom.type];
+      if (!configs || configs.length === 0) continue;
+
+      // Determine active hours based on schedule
+      const sched = person.schedule;
+      if (!sched) continue;
+
+      const activeWindows = [];
+      if (sched.type === 'apartment') {
+        if (sched.staysHome) {
+          // Home all day — can visit anytime during amenity hours
+          activeWindows.push([6, 22]);
+        } else {
+          // Before leaving and after returning
+          if (sched.leaveHour > 6.5) activeWindows.push([6, sched.leaveHour - 0.5]);
+          if (sched.returnHour < 22) activeWindows.push([sched.returnHour + 0.5, 22]);
+        }
+      } else if (sched.type === 'office') {
+        // During work hours (lunch break, coffee run)
+        if (sched.arriveHour < sched.departHour - 1) {
+          activeWindows.push([sched.arriveHour + 0.5, sched.departHour - 0.5]);
+        }
+      }
+      // Retail/restaurant staff don't visit amenities
+
+      if (activeWindows.length === 0) continue;
+
+      // Pick number of visits: max across all appealing amenity configs
+      let maxVisits = 0;
+      for (const vc of configs) {
+        const range = vc.dailyVisitsPerPerson;
+        const num = range[0] + Math.round(person.preferences.amenitySensitivity * (range[1] - range[0]));
+        maxVisits = Math.max(maxVisits, num);
+      }
+      if (maxVisits <= 0) continue;
+
+      // Generate visit hours spread across active windows
+      const totalActiveHours = activeWindows.reduce((sum, [s, e]) => sum + (e - s), 0);
+      if (totalActiveHours < 0.5) continue;
+
+      const visits = [];
+      for (let i = 0; i < maxVisits; i++) {
+        // Pick a random point in the combined active windows
+        let r = Math.random() * totalActiveHours;
+        let hour = 0;
+        for (const [start, end] of activeWindows) {
+          const span = end - start;
+          if (r < span) {
+            hour = start + r;
+            break;
+          }
+          r -= span;
+        }
+        visits.push({ hour });
+      }
+
+      visits.sort((a, b) => a.hour - b.hour);
+      person.plannedVisits = visits;
+    }
   }
 
   checkMaintenance() {
@@ -558,6 +839,16 @@ export class Simulation {
         continue;
       }
       if (person.movingOut) continue;
+
+      // Clean up amenity visit if person is visiting somewhere
+      if (person.visitingRoom) {
+        const amenityRoom = this.gameState.tower.rooms.get(person.visitingRoom);
+        if (amenityRoom) {
+          amenityRoom.visitors = amenityRoom.visitors.filter(id => id !== person.id);
+        }
+        person.visitingRoom = null;
+        person.visitEndHour = 0;
+      }
 
       if (person.hidden) {
         // Already off-screen — direct removal
@@ -903,6 +1194,13 @@ export class Simulation {
         }
 
         // === Amenity effects ===
+        // Visit-based bonus: reward for actually visiting amenities today
+        if (person.visitSatisfactionBonus > 0) {
+          sat += person.visitSatisfactionBonus;
+        }
+
+        // Reduced passive proximity bonus (~30% of original) — keeps amenities
+        // slightly valuable even before the first visit of the day
         for (const aRoom of amenityRooms) {
           const def = ROOM_TYPES[aRoom.type];
           const ae = def.amenityEffect;
@@ -925,7 +1223,7 @@ export class Simulation {
           }
 
           if (benefited) {
-            const boost = ae.boostMin + person.preferences.amenitySensitivity * (ae.boostMax - ae.boostMin);
+            const boost = (ae.boostMin + person.preferences.amenitySensitivity * (ae.boostMax - ae.boostMin)) * 0.3;
             sat += boost;
           }
         }
