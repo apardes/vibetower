@@ -56,6 +56,13 @@ export class Tower {
     return roomId ? this.rooms.get(roomId) : null;
   }
 
+  // Check if anything (room or elevator) occupies a grid cell
+  isCellOccupied(gridX, gridY) {
+    if (gridX < 0 || gridX >= TOWER_MAX_WIDTH) return false;
+    if (gridY < 0 || gridY >= TOWER_MAX_FLOORS) return false;
+    return this.grid[gridY][gridX] !== null;
+  }
+
   // Check if a floor has any rooms
   floorHasRooms(floorY) {
     if (floorY < 0 || floorY >= TOWER_MAX_FLOORS) return false;

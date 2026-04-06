@@ -152,10 +152,10 @@ export class BuildTool {
     // Star gate
     if (def.unlockStar > this.gameState.starRating) return false;
 
-    // Every cell must be fully supported
+    // Every cell must be fully supported (rooms or elevators count as support)
     if (gridY > 0) {
       for (let dx = 0; dx < def.width; dx++) {
-        if (!this.tower.getRoomAt(gridX + dx, gridY - 1)) return false;
+        if (!this.tower.isCellOccupied(gridX + dx, gridY - 1)) return false;
       }
     }
 

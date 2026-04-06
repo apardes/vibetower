@@ -34,6 +34,7 @@ const particles = new ParticleEffects(renderer.scene);
 
 // Game state
 const gameState = new GameState();
+towerRenderer.elevators = gameState.tower.elevators;
 const floatingText = new FloatingText(renderer.scene, gameState);
 
 // Input
@@ -61,6 +62,10 @@ eventBus.on('roomPlaced', (room) => {
     particles.addSteamEmitter(room);
   }
 });
+
+// Rebuild exterior when elevators change (for roof lines)
+eventBus.on('elevatorPlaced', () => towerRenderer.updateExterior());
+eventBus.on('elevatorRemoved', () => towerRenderer.updateExterior());
 
 // Per-frame render updates (lighting, animations, effects)
 let lastInteriorUpdate = 0;

@@ -17,6 +17,9 @@ export class TowerRenderer {
     // Animations in progress
     this.buildAnimations = [];
 
+    // Set from main.js so exterior knows about elevator positions
+    this.elevators = null;
+
     this.createGround();
   }
 
@@ -142,7 +145,7 @@ export class TowerRenderer {
       }
     }
 
-    // Scan for contiguous room segments per floor
+    // Scan for contiguous room segments per floor (including elevators)
     const floorSegments = new Map();
     for (const [, mesh] of this.roomMeshes) {
       const x = mesh.position.x;
@@ -150,6 +153,15 @@ export class TowerRenderer {
       const halfW = mesh.geometry.parameters.width / 2;
       if (!floorSegments.has(y)) floorSegments.set(y, []);
       floorSegments.get(y).push({ minX: x - halfW, maxX: x + halfW });
+    }
+    // Include elevator shafts in floor segments
+    if (this.elevators) {
+      for (const [, elev] of this.elevators) {
+        for (let f = elev.minFloor; f <= elev.maxFloor; f++) {
+          if (!floorSegments.has(f)) floorSegments.set(f, []);
+          floorSegments.get(f).push({ minX: elev.gridX, maxX: elev.gridX + 1 });
+        }
+      }
     }
     // Merge overlapping/adjacent segments per floor
     for (const [floor, segs] of floorSegments) {
@@ -194,18 +206,51 @@ export class TowerRenderer {
       }
     }
 
-    // Rooflines — on top of each segment that has no segment directly above it
+    // Rooflines — only on portions of each segment not covered by the floor above
     for (const [floor, segments] of floorBounds) {
       const above = floorBounds.get(floor + 1);
       for (const seg of segments) {
-        const covered = above && above.some(s => s.minX <= seg.minX + 0.1 && s.maxX >= seg.maxX - 0.1);
-        if (!covered) {
-          const roofW = seg.maxX - seg.minX + 0.2;
+        // Find uncovered portions by subtracting all segments above
+        let exposed = [{ minX: seg.minX, maxX: seg.maxX }];
+        if (above) {
+          for (const aboveSeg of above) {
+            const next = [];
+            for (const e of exposed) {
+              if (aboveSeg.minX >= e.maxX - 0.1 || aboveSeg.maxX <= e.minX + 0.1) {
+                // No overlap
+                next.push(e);
+              } else {
+                // Left remainder
+                if (e.minX < aboveSeg.minX - 0.1) {
+                  next.push({ minX: e.minX, maxX: aboveSeg.minX });
+                }
+                // Right remainder
+                if (e.maxX > aboveSeg.maxX + 0.1) {
+                  next.push({ minX: aboveSeg.maxX, maxX: e.maxX });
+                }
+              }
+            }
+            exposed = next;
+          }
+        }
+        // Draw roof on each exposed portion
+        for (const e of exposed) {
+          if (e.maxX - e.minX < 0.2) continue; // skip tiny slivers
+          // Overhang on exterior edges only, flush on interior edges
+          const leftExterior = Math.abs(e.minX - seg.minX) < 0.1;
+          const rightExterior = Math.abs(e.maxX - seg.maxX) < 0.1;
+          const overhang = 0.1;
+          const leftExt = leftExterior ? overhang : 0;
+          const rightExt = rightExterior ? overhang : 0;
+          const roofMin = e.minX - leftExt;
+          const roofMax = e.maxX + rightExt;
+          const roofW = roofMax - roofMin;
+          const roofCenterX = (roofMin + roofMax) / 2;
           const roof = new THREE.Mesh(new THREE.PlaneGeometry(roofW, 0.12), roofMat);
-          roof.position.set((seg.minX + seg.maxX) / 2, floor + 1.05, 0.015);
+          roof.position.set(roofCenterX, floor + 1.05, 0.015);
           this.exteriorGroup.add(roof);
-          const parapet = new THREE.Mesh(new THREE.PlaneGeometry(roofW + 0.1, 0.06), roofMat);
-          parapet.position.set((seg.minX + seg.maxX) / 2, floor + 1.12, 0.016);
+          const parapet = new THREE.Mesh(new THREE.PlaneGeometry(roofW + 0.04, 0.06), roofMat);
+          parapet.position.set(roofCenterX, floor + 1.12, 0.016);
           this.exteriorGroup.add(parapet);
         }
       }
