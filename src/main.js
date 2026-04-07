@@ -101,4 +101,4 @@ eventBus.on('tick', () => {
 // Expose for debugging
 window.game = { renderer, sky, gameState, simulation, towerRenderer };
 
-console.log('SimTower loaded');
+console.log('VibeTower loaded');
