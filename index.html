@@ -20,6 +20,42 @@
 </head>
 <body>
   <canvas id="game-canvas"></canvas>
+  <script>
+    // Scale the vibejam widget when it appears in the DOM
+    new MutationObserver(function(mutations, obs) {
+      for (var m of mutations) {
+        for (var node of m.addedNodes) {
+          if (node.nodeType !== 1) continue;
+          // Look for the widget by checking for jam/pieter links inside it
+          if (node.querySelector && (
+            node.querySelector('a[href*="jam.pieter"]') ||
+            node.querySelector('a[href*="vibejam"]') ||
+            node.querySelector('a[href*="vibecodejam"]') ||
+            (node.tagName === 'A' && node.href && node.href.includes('jam'))
+          )) {
+            node.style.transform = 'scale(0.75)';
+            node.style.transformOrigin = 'bottom right';
+            obs.disconnect();
+            return;
+          }
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  </script>
+  <script async src="https://jam.pieter.com/2026/widget.js"></script>
+  <script src="config.js"></script>
+  <script>
+    if (window.GTAG_ID) {
+      var s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=' + window.GTAG_ID;
+      document.head.appendChild(s);
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', window.GTAG_ID);
+    }
+  </script>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>
