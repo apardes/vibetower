@@ -78,9 +78,9 @@ server {
         add_header Cache-Control "no-cache";
     }
 
-    # JS modules — cache 1 hour, ETags for revalidation
+    # JS modules — always revalidate, ETags make it fast (304 if unchanged)
     location /src/ {
-        add_header Cache-Control "public, max-age=3600";
+        add_header Cache-Control "no-cache";
         etag on;
     }
 
