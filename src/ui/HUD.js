@@ -74,24 +74,24 @@ export class HUD {
     this.popEl = document.createElement('span');
     this.popEl.style.cssText = btnIndicatorStyle;
     this.popEl.title = 'Population';
-    this.popEl.addEventListener('mouseenter', () => this.popEl.style.background = 'rgba(255,255,255,0.06)');
-    this.popEl.addEventListener('mouseleave', () => this.popEl.style.background = 'none');
+    this.popEl.addEventListener('pointerenter', (e) => { if (e.pointerType === 'touch') return; this.popEl.style.background = 'rgba(255,255,255,0.06)'; });
+    this.popEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'touch') return; this.popEl.style.background = 'none'; });
     this.popEl.addEventListener('click', () => this.togglePopPanel());
 
     // Occupancy: building emoji + X/Y → triggers unit panel
     this.occEl = document.createElement('span');
     this.occEl.style.cssText = btnIndicatorStyle;
     this.occEl.title = 'Occupancy';
-    this.occEl.addEventListener('mouseenter', () => this.occEl.style.background = 'rgba(255,255,255,0.06)');
-    this.occEl.addEventListener('mouseleave', () => this.occEl.style.background = 'none');
+    this.occEl.addEventListener('pointerenter', (e) => { if (e.pointerType === 'touch') return; this.occEl.style.background = 'rgba(255,255,255,0.06)'; });
+    this.occEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'touch') return; this.occEl.style.background = 'none'; });
     this.occEl.addEventListener('click', () => this.toggleUnitPanel());
 
     // Satisfaction: emoji + % — click for history chart
     this.satEl = document.createElement('span');
     this.satEl.style.cssText = btnIndicatorStyle;
     this.satEl.title = 'Satisfaction';
-    this.satEl.addEventListener('mouseenter', () => this.satEl.style.background = 'rgba(255,255,255,0.06)');
-    this.satEl.addEventListener('mouseleave', () => this.satEl.style.background = 'none');
+    this.satEl.addEventListener('pointerenter', (e) => { if (e.pointerType === 'touch') return; this.satEl.style.background = 'rgba(255,255,255,0.06)'; });
+    this.satEl.addEventListener('pointerleave', (e) => { if (e.pointerType === 'touch') return; this.satEl.style.background = 'none'; });
     this.satEl.addEventListener('click', (e) => { e.stopPropagation(); this.toggleSatPanel(); });
     this.updateSatisfactionIndicator();
 
@@ -166,10 +166,12 @@ export class HUD {
       `;
       btn.textContent = label;
       btn.title = title;
-      btn.addEventListener('mouseenter', () => {
+      btn.addEventListener('pointerenter', (e) => {
+        if (e.pointerType === 'touch') return;
         if (speed !== this.gameState.time.speed) btn.style.background = 'rgba(255,255,255,0.06)';
       });
-      btn.addEventListener('mouseleave', () => {
+      btn.addEventListener('pointerleave', (e) => {
+        if (e.pointerType === 'touch') return;
         if (speed !== this.gameState.time.speed) btn.style.background = 'transparent';
       });
       btn.addEventListener('click', () => {
@@ -200,11 +202,13 @@ export class HUD {
       align-items: center;
       justify-content: center;
     `;
-    helpBtn.addEventListener('mouseenter', () => {
+    helpBtn.addEventListener('pointerenter', (e) => {
+      if (e.pointerType === 'touch') return;
       helpBtn.style.background = 'rgba(255,255,255,0.12)';
       helpBtn.style.color = '#bbb';
     });
-    helpBtn.addEventListener('mouseleave', () => {
+    helpBtn.addEventListener('pointerleave', (e) => {
+      if (e.pointerType === 'touch') return;
       helpBtn.style.background = 'rgba(255,255,255,0.06)';
       helpBtn.style.color = '#888';
     });
@@ -344,7 +348,8 @@ export class HUD {
           tipText = `\u2605 ${starNum} \u2014 ${threshold.population} pop, ${threshold.satisfaction}% satisfaction`;
         }
 
-        star.addEventListener('mouseenter', (e) => {
+        star.addEventListener('pointerenter', (e) => {
+          if (e.pointerType === 'touch') return;
           const rect = e.target.getBoundingClientRect();
           this.starTooltip.textContent = tipText;
           this.starTooltip.style.left = rect.left + rect.width / 2 + 'px';
@@ -352,7 +357,8 @@ export class HUD {
           this.starTooltip.style.transform = 'translateX(-50%)';
           this.starTooltip.style.opacity = '1';
         });
-        star.addEventListener('mouseleave', () => {
+        star.addEventListener('pointerleave', (e) => {
+          if (e.pointerType === 'touch') return;
           this.starTooltip.style.opacity = '0';
         });
       }
@@ -445,8 +451,8 @@ export class HUD {
       cursor: pointer; font-size: 14px; padding: 4px 6px;
       border-radius: 4px; transition: all 0.15s;
     `;
-    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.color = '#aaa'; closeBtn.style.background = 'rgba(255,255,255,0.06)'; });
-    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.color = '#666'; closeBtn.style.background = 'none'; });
+    closeBtn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'touch') return; closeBtn.style.color = '#aaa'; closeBtn.style.background = 'rgba(255,255,255,0.06)'; });
+    closeBtn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'touch') return; closeBtn.style.color = '#666'; closeBtn.style.background = 'none'; });
     header.appendChild(closeBtn);
 
     const body = document.createElement('div');

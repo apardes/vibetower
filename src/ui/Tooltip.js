@@ -26,7 +26,13 @@ export class Tooltip {
     eventBus.on('mousemove', (pos) => this.onMouseMove(pos));
   }
 
-  onMouseMove({ x, y, screenX, screenY }) {
+  onMouseMove({ x, y, screenX, screenY, pointerType }) {
+    // Don't show tooltip on touch devices (useless under a finger)
+    if (pointerType === 'touch') {
+      this.el.style.display = 'none';
+      return;
+    }
+
     // Don't show tooltip in build mode
     if (this.gameState.selectedTool) {
       this.el.style.display = 'none';

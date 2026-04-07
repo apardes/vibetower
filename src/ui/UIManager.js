@@ -21,7 +21,7 @@ export class UIManager {
   _setupPanelManagement() {
     // Collect all panel references once they exist
     // We check lazily since some panels are created on first click
-    document.addEventListener('mousedown', (e) => {
+    document.addEventListener('pointerdown', (e) => {
       // Don't close game-world panels (like UnitDetail) on canvas clicks —
       // the game's own click handler manages those
       const isCanvasClick = e.target.tagName === 'CANVAS';

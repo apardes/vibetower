@@ -62,11 +62,13 @@ export class ActivityLog {
     `;
     this.alertCount = 0;
     this.updateButtonLabel();
-    this.btn.addEventListener('mouseenter', () => {
+    this.btn.addEventListener('pointerenter', (e) => {
+      if (e.pointerType === 'touch') return;
       this.btn.style.background = 'rgba(255,255,255,0.06)';
       this.btn.style.color = '#bbb';
     });
-    this.btn.addEventListener('mouseleave', () => {
+    this.btn.addEventListener('pointerleave', (e) => {
+      if (e.pointerType === 'touch') return;
       this.btn.style.background = 'transparent';
       this.btn.style.color = '#888';
     });
