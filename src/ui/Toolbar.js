@@ -88,15 +88,13 @@ export class Toolbar {
       `;
       btn.innerHTML = `<span style="font-size:19px;">${cat.emoji}</span> ${cat.label}`;
 
-      btn.addEventListener('pointerenter', (e) => {
-        if (e.pointerType === 'touch') return;
+      btn.addEventListener('mouseenter', () => {
         if (this.openCategoryId !== cat.id) {
           btn.style.background = 'rgba(255,255,255,0.06)';
           btn.style.color = '#d0d0d8';
         }
       });
-      btn.addEventListener('pointerleave', (e) => {
-        if (e.pointerType === 'touch') return;
+      btn.addEventListener('mouseleave', () => {
         if (this.openCategoryId !== cat.id) {
           btn.style.background = 'transparent';
           btn.style.color = '#a0a0b0';
@@ -144,15 +142,13 @@ export class Toolbar {
       transition: all 0.15s;
     `;
     bulldozeBtn.innerHTML = '<span style="font-size:19px;">\u{1F6A7}</span> Demolish';
-    bulldozeBtn.addEventListener('pointerenter', (e) => {
-      if (e.pointerType === 'touch') return;
+    bulldozeBtn.addEventListener('mouseenter', () => {
       if (this.gameState.selectedTool !== 'bulldoze') {
         bulldozeBtn.style.background = 'rgba(170,80,80,0.15)';
         bulldozeBtn.style.color = '#cc8888';
       }
     });
-    bulldozeBtn.addEventListener('pointerleave', (e) => {
-      if (e.pointerType === 'touch') return;
+    bulldozeBtn.addEventListener('mouseleave', () => {
       if (this.gameState.selectedTool !== 'bulldoze') {
         bulldozeBtn.style.background = 'transparent';
         bulldozeBtn.style.color = '#aa6666';
@@ -191,13 +187,11 @@ export class Toolbar {
     `;
     infoBtn.innerHTML = '<span style="font-size:18px;">\u{1F4D6}</span>';
     infoBtn.title = 'Reference';
-    infoBtn.addEventListener('pointerenter', (e) => {
-      if (e.pointerType === 'touch') return;
+    infoBtn.addEventListener('mouseenter', () => {
       infoBtn.style.background = 'rgba(255,255,255,0.1)';
       infoBtn.style.color = '#bbb';
     });
-    infoBtn.addEventListener('pointerleave', (e) => {
-      if (e.pointerType === 'touch') return;
+    infoBtn.addEventListener('mouseleave', () => {
       infoBtn.style.background = 'rgba(255,255,255,0.04)';
       infoBtn.style.color = '#888';
     });
@@ -275,13 +269,11 @@ export class Toolbar {
         item.style.color = '#8ab4ff';
       }
 
-      item.addEventListener('pointerenter', (e) => {
-        if (e.pointerType === 'touch') return;
+      item.addEventListener('mouseenter', () => {
         item.style.background = 'rgba(255,255,255,0.06)';
         item.style.color = '#e0e0e8';
       });
-      item.addEventListener('pointerleave', (e) => {
-        if (e.pointerType === 'touch') return;
+      item.addEventListener('mouseleave', () => {
         if (this.gameState.selectedTool !== type) {
           item.style.background = 'transparent';
           item.style.color = '#c0c0c8';
@@ -371,8 +363,8 @@ export class Toolbar {
       cursor: pointer; font-size: 14px; padding: 4px 6px;
       border-radius: 4px; transition: all 0.15s;
     `;
-    closeBtn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'touch') return; closeBtn.style.color = '#aaa'; closeBtn.style.background = 'rgba(255,255,255,0.06)'; });
-    closeBtn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'touch') return; closeBtn.style.color = '#666'; closeBtn.style.background = 'none'; });
+    closeBtn.addEventListener('mouseenter', () => { closeBtn.style.color = '#aaa'; closeBtn.style.background = 'rgba(255,255,255,0.06)'; });
+    closeBtn.addEventListener('mouseleave', () => { closeBtn.style.color = '#666'; closeBtn.style.background = 'none'; });
     closeBtn.addEventListener('click', () => this.toggleInfoPanel());
     header.appendChild(closeBtn);
 

@@ -105,7 +105,7 @@ export const ROOM_TYPES = {
     amenityEffect: null,
   },
   apartment: {
-    name: 'Apartment',
+    name: '1 Bedroom',
     width: 2,
     height: 1,
     cost: 20000,
@@ -117,7 +117,7 @@ export const ROOM_TYPES = {
     amenityEffect: null,
   },
   office: {
-    name: 'Office',
+    name: 'Medium Office',
     width: 3,
     height: 1,
     cost: 40000,
@@ -129,7 +129,7 @@ export const ROOM_TYPES = {
     amenityEffect: null,
   },
   retail: {
-    name: 'Retail',
+    name: 'Convenience Store',
     width: 2,
     height: 1,
     cost: 30000,
@@ -149,7 +149,7 @@ export const ROOM_TYPES = {
     },
   },
   restaurant: {
-    name: 'Restaurant',
+    name: 'Restaurant (Fancy)',
     width: 4,
     height: 1,
     cost: 80000,

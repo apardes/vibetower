@@ -28,8 +28,8 @@ export class ToastNotification {
       margin-bottom: 6px;
     `;
     this.clearAllBtn.textContent = 'Clear all';
-    this.clearAllBtn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'touch') return; this.clearAllBtn.style.color = '#bbb'; this.clearAllBtn.style.background = 'rgba(255,255,255,0.06)'; });
-    this.clearAllBtn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'touch') return; this.clearAllBtn.style.color = '#888'; this.clearAllBtn.style.background = 'rgba(14,14,24,0.9)'; });
+    this.clearAllBtn.addEventListener('mouseenter', () => { this.clearAllBtn.style.color = '#bbb'; this.clearAllBtn.style.background = 'rgba(255,255,255,0.06)'; });
+    this.clearAllBtn.addEventListener('mouseleave', () => { this.clearAllBtn.style.color = '#888'; this.clearAllBtn.style.background = 'rgba(14,14,24,0.9)'; });
     this.clearAllBtn.addEventListener('click', () => this.clearAll());
 
     // Pay all button
@@ -51,8 +51,8 @@ export class ToastNotification {
       display: none;
       margin-bottom: 6px;
     `;
-    this.payAllBtn.addEventListener('pointerenter', (e) => { if (e.pointerType === 'touch') return; this.payAllBtn.style.color = '#aaffaa'; this.payAllBtn.style.background = 'rgba(50,140,50,0.7)'; });
-    this.payAllBtn.addEventListener('pointerleave', (e) => { if (e.pointerType === 'touch') return; this.payAllBtn.style.color = '#88ee88'; this.payAllBtn.style.background = 'rgba(50,140,50,0.5)'; });
+    this.payAllBtn.addEventListener('mouseenter', () => { this.payAllBtn.style.color = '#aaffaa'; this.payAllBtn.style.background = 'rgba(50,140,50,0.7)'; });
+    this.payAllBtn.addEventListener('mouseleave', () => { this.payAllBtn.style.color = '#88ee88'; this.payAllBtn.style.background = 'rgba(50,140,50,0.5)'; });
     this.payAllBtn.addEventListener('click', () => this.payAll());
 
     // Scrollable toast list

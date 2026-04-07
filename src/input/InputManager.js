@@ -53,14 +53,18 @@ export class InputManager {
   }
 
   onPointerMove(e) {
-    const prev = this.pointers.get(e.pointerId);
-    if (!prev) return;
-    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.lastPointerType = e.pointerType;
 
     if (e.pointerType === 'touch') {
+      const prev = this.pointers.get(e.pointerId);
+      if (!prev) return;
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       this._onTouchMove(e, prev);
     } else {
+      // Mouse move fires with or without button pressed (hover + drag)
+      if (this.pointers.has(e.pointerId)) {
+        this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      }
       this._onMouseMove(e);
     }
   }
